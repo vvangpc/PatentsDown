@@ -5,6 +5,7 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 from extractor import process_office_action
 from downloader import process_downloads
 from tkinter import messagebox, filedialog
+import tkinter.ttk as ttk
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -19,9 +20,9 @@ class App(Tk):
         super().__init__()
         
         self.title("专利对比文件自动下载工具")
-        self.geometry("800x650")
-        self.pdf_path = None  # 用户拖入的审查意见通知书路径
-        
+        self.geometry("820x700")
+        self.pdf_path = None
+
         # ===== 顶部标题 =====
         self.label_title = ctk.CTkLabel(self, text="专利对比文件自动下载工具",
                                          font=("Microsoft YaHei", 22, "bold"))
@@ -96,16 +97,48 @@ class App(Tk):
         self.progress_bar.pack(pady=(5, 8), padx=20, fill="x")
         self.progress_bar.set(0)
 
-        # ===== 日志区域 =====
-        self.textbox_log = ctk.CTkTextbox(self, height=180, state="disabled",
-                                           font=("Consolas", 12))
-        self.textbox_log.pack(pady=(0, 10), padx=20, fill="both", expand=True)
+        # ===== 下载状态表格 =====
+        self.table_frame = ctk.CTkFrame(self, corner_radius=10)
+        self.table_frame.pack(pady=(0, 10), padx=20, fill="both", expand=True)
 
-    def log(self, text):
-        self.textbox_log.configure(state="normal")
-        self.textbox_log.insert("end", text + "\n")
-        self.textbox_log.see("end")
-        self.textbox_log.configure(state="disabled")
+        ctk.CTkLabel(self.table_frame, text="下载状态",
+                     font=("Microsoft YaHei", 13, "bold")).pack(pady=(8, 4))
+
+        # 配置 Treeview 样式
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("Custom.Treeview",
+                         background="#2b2b2b",
+                         foreground="white",
+                         fieldbackground="#2b2b2b",
+                         rowheight=28,
+                         font=("Consolas", 12))
+        style.configure("Custom.Treeview.Heading",
+                         background="#3a3a3a",
+                         foreground="white",
+                         font=("Microsoft YaHei", 12, "bold"))
+        style.map("Custom.Treeview",
+                   background=[("selected", "#1f6aa5")])
+
+        # Treeview 表格
+        columns = ("label", "patent_number", "status")
+        self.tree = ttk.Treeview(self.table_frame, columns=columns, show="headings",
+                                  style="Custom.Treeview", height=8)
+        self.tree.heading("label", text="文件标签")
+        self.tree.heading("patent_number", text="专利号")
+        self.tree.heading("status", text="下载状态")
+        self.tree.column("label", width=120, anchor="center")
+        self.tree.column("patent_number", width=300, anchor="center")
+        self.tree.column("status", width=200, anchor="center")
+
+        scrollbar = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+
+        self.tree.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=(0, 10))
+        scrollbar.pack(side="right", fill="y", padx=(0, 10), pady=(0, 10))
+
+        # 保存 tree item id 列表，用于后续更新状态
+        self.tree_items = []
 
     def on_drop(self, event):
         files = self.tk.splitlist(event.data)
@@ -113,12 +146,10 @@ class App(Tk):
             return
         file_path = files[0]
         if not file_path.lower().endswith(".pdf"):
-            self.log("错误：请拖入 PDF 文件！")
             return
         self.pdf_path = file_path
         self.label_drop.configure(text=f"✅ {os.path.basename(file_path)}", text_color="green")
         self.label_save_dir.configure(text=os.path.dirname(file_path))
-        self.log(f"已选择文件: {os.path.basename(file_path)}")
 
     def on_click_select(self, event=None):
         file_path = filedialog.askopenfilename(
@@ -127,10 +158,27 @@ class App(Tk):
         )
         if file_path:
             self.pdf_path = file_path
-            self.label_drop.configure(text=f"✅ {os.path.basename(file_path)}",
-                                       text_color="green")
+            self.label_drop.configure(text=f"✅ {os.path.basename(file_path)}", text_color="green")
             self.label_save_dir.configure(text=os.path.dirname(file_path))
-            self.log(f"已选择文件: {os.path.basename(file_path)}")
+
+    def update_table_status(self, index, new_status):
+        """线程安全地更新表格中某一行的状态"""
+        def _update():
+            if index < len(self.tree_items):
+                item_id = self.tree_items[index]
+                values = self.tree.item(item_id, "values")
+                self.tree.item(item_id, values=(values[0], values[1], new_status))
+        self.after(0, _update)
+
+    def populate_table(self, download_list):
+        """清空表格并填充待下载列表"""
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        self.tree_items = []
+
+        for label, patent_number in download_list:
+            item_id = self.tree.insert("", "end", values=(label, patent_number, "⏳ 等待中"))
+            self.tree_items.append(item_id)
 
     def on_start_download(self):
         pub_number = self.entry_pub_number.get().strip()
@@ -140,7 +188,6 @@ class App(Tk):
             messagebox.showwarning("提示", "请至少：\n- 输入申请文件公开号\n- 或拖入审查意见通知书 PDF")
             return
 
-        # 确定保存目录
         if pdf_path:
             save_dir = os.path.dirname(pdf_path)
         else:
@@ -156,49 +203,40 @@ class App(Tk):
                          args=(pub_number, pdf_path, save_dir),
                          daemon=True).start()
 
-    def process_all(self, pub_number, pdf_path, save_dir):
-        all_downloads = []  # [(label, patent_number), ...]
+    def log_to_status(self, text):
+        """简化日志 — 输出到终端（调试用），不再显示在 UI 文本框"""
+        print(text)
 
-        # 1. 如果用户输入了申请文件公开号
+    def process_all(self, pub_number, pdf_path, save_dir):
+        all_downloads = []
+
         if pub_number:
-            # 清洗：去空格，统一大写
             pub_number = pub_number.upper().replace(" ", "")
             all_downloads.append(("申请文件", pub_number))
-            self.log(f">> 申请文件公开号: {pub_number}")
 
-        # 2. 如果上传了审查意见通知书，解析对比文件
         if pdf_path:
-            self.log(">> 正在解析审查意见通知书 PDF 第一页...")
             success, _app_number, result = process_office_action(pdf_path)
-
             if success and result:
-                display_list = ', '.join([f"{label}-{pn}" for label, pn in result])
-                self.log(f"成功识别 {len(result)} 个对比文件: {display_list}")
                 all_downloads.extend(result)
-            else:
-                if isinstance(result, str):
-                    self.log(f"解析提示: {result}")
-                else:
-                    self.log("未在 PDF 中识别到对比文件专利号。")
 
         if not all_downloads:
-            self.log("没有需要下载的文件。")
             self.btn_download.configure(state="normal", text="🚀 开始下载")
             self.progress_bar.set(0)
+            self.after(0, lambda: messagebox.showwarning("提示", "没有需要下载的文件。"))
             return
 
+        # 填充表格
+        self.after(0, lambda: self.populate_table(all_downloads))
         self.progress_bar.set(0.3)
-        total = len(all_downloads)
-        self.log(f"\n>> 共 {total} 个文件待下载，正在初始化下载器...")
-        self.log("（初次启动可能需要下载 WebDriver，请耐心等待）")
 
-        success_count = process_downloads(all_downloads, save_dir, log_callback=self.log)
+        success_count = process_downloads(
+            all_downloads, save_dir,
+            log_callback=self.log_to_status,
+            status_callback=self.update_table_status
+        )
 
         self.progress_bar.set(1.0)
-        self.log(f"\n===== 任务完成 =====")
-        self.log(f"共需下载 {total} 个文件，成功 {success_count} 个")
-        self.log(f"文件保存在: {save_dir}")
-
+        total = len(all_downloads)
         self.btn_download.configure(state="normal", text="🚀 开始下载")
         self.after(0, lambda: messagebox.showinfo("完成",
             f"任务已完成！\n成功下载 {success_count}/{total} 个文件。\n保存位置: {save_dir}"))
