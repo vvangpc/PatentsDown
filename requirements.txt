@@ -1,0 +1,6 @@
+customtkinter
+tkinterdnd2
+PyMuPDF
+selenium
+webdriver-manager
+pyinstaller
