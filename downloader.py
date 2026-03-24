@@ -127,8 +127,8 @@ def init_driver(log_callback=print):
 
     try:
         driver_path = ChromeDriverManager().install()
-    except Exception as e:
-        log_callback(f"ChromeDriver 下载失败（请检查网络连接）: {e}")
+    except Exception:
+        log_callback("❌ ChromeDriver 驱动自动下载失败。请检查网络，或确保已安装 Google Chrome 浏览器。")
         return None
 
     try:
@@ -139,7 +139,7 @@ def init_driver(log_callback=print):
         driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
-        log_callback(f"Chrome 浏览器启动失败: {e}")
+        log_callback(f"❌ 浏览器启动失败，原因: {str(e)[:100]}...")
         return None
 
 def download_via_selenium(driver, patent_number, save_dir, filename, logger):
