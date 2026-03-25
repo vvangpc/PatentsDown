@@ -208,10 +208,7 @@ class App(Tk):
             self.log(f"\n⚠️ 以下 {failed_count} 个文件下载失败，请手动处理：")
             # 这里的 all_downloads 包含了所有提取的号，对比实际保存的文件
             for label, pn in all_downloads:
-                # 由于文件名现在包含标题，需要模糊搜索以 label-pn 开头的文件
-                prefix = f"{label}-{pn}"
-                found = any(f.startswith(prefix) and f.lower().endswith(".pdf") for f in os.listdir(save_dir))
-                if not found:
+                if not os.path.exists(os.path.join(save_dir, f"{label}-{pn}.pdf")):
                     self.log(f"{pn}") # 只打印纯专利号，方便直接复制去网页搜索
         # ------------------------------
 
