@@ -27,14 +27,24 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+def clean_filename(text):
+    """过滤文件名中的非法字符"""
+    return re.sub(r'[\\/:*?"<>|]', '_', text).strip()
+
+def get_patent_title(html):
+    """从 Google Patents HTML 内容中提取标题"""
+    # 匹配 <span itemprop="title"> ... </span>
+    match = re.search(r'<span itemprop="title">[\s\n]*(.*?)[\s\n]*</span>', html, re.DOTALL)
+    if match:
+        title = match.group(1).strip()
+        return clean_filename(title)
+    return ""
+
 def download_file(url, filename, save_dir, logger, max_retries=3):
     """下载文件到本地，支持自动重试"""
+    # 由于文件名现在包含动态标题，这里只作为最后的保存逻辑
     save_path = os.path.join(save_dir, f"{filename}.pdf")
-    # 如果文件已存在，且大于 50KB（结合了上一次的防坑校验），则直接跳过
-    if os.path.exists(save_path) and os.path.getsize(save_path) > 50 * 1024:
-        logger(f"⏩ 文件已存在且完整，自动跳过: {filename}.pdf")
-        return True
-
+    
     for attempt in range(1, max_retries + 1):
         try:
             response = requests.get(url, headers=HEADERS, stream=True, timeout=60)
@@ -83,6 +93,15 @@ def download_via_requests(patent_number, save_dir, filename, logger):
         resp.raise_for_status()
 
         html = resp.text
+        # 提取专利标题
+        title = get_patent_title(html)
+        final_filename = f"{filename}-{title}" if title else filename
+        
+        # 此时再检查文件是否已存在（因为此时才确定最终文件名）
+        save_path = os.path.join(save_dir, f"{final_filename}.pdf")
+        if os.path.exists(save_path) and os.path.getsize(save_path) > 50 * 1024:
+            logger(f"⏩ 文件已存在: {final_filename}.pdf")
+            return True
 
         # 检测 reCAPTCHA / 人机验证
         html_lower = html.lower()
@@ -96,8 +115,8 @@ def download_via_requests(patent_number, save_dir, filename, logger):
 
         if matches:
             pdf_url = matches[0]
-            logger(f"[直连模式] 找到 PDF 链接，正在下载...")
-            return download_file(pdf_url, filename, save_dir, logger)
+            logger(f"[直连模式] 找到 PDF 链接 [{title[:20]}...]，正在下载...")
+            return download_file(pdf_url, final_filename, save_dir, logger)
         else:
             logger("[直连模式] 未在页面源码中找到 PDF 链接")
             return False
@@ -167,6 +186,23 @@ def download_via_selenium(driver, patent_number, save_dir, filename, logger):
             logger("⚠️ 触发 Google 频繁访问验证，当前文件跳过下载")
             return False
 
+        # 提取专利标题 (Selenium 模式下直接通过 DOM 获取)
+        title = ""
+        try:
+            title_elem = driver.find_element(By.CSS_SELECTOR, "span[itemprop='title']")
+            if title_elem:
+                title = clean_filename(title_elem.text.strip())
+        except Exception:
+            pass
+        
+        final_filename = f"{filename}-{title}" if title else filename
+        
+        # 检查是否已存在
+        save_path = os.path.join(save_dir, f"{final_filename}.pdf")
+        if os.path.exists(save_path) and os.path.getsize(save_path) > 50 * 1024:
+            logger(f"⏩ 文件已存在: {final_filename}.pdf")
+            return True
+
         # 显式等待（最多 10 秒）
         pdf_xpath = "//a[contains(@href, 'patentimages.storage.googleapis.com') and contains(@href, '.pdf')]"
         try:
@@ -187,8 +223,8 @@ def download_via_selenium(driver, patent_number, save_dir, filename, logger):
                 pdf_url = pdf_links[0].get_attribute("href")
 
         if pdf_url:
-            logger("[浏览器模式] 找到 PDF 链接，正在下载...")
-            return download_file(pdf_url, filename, save_dir, logger)
+            logger(f"[浏览器模式] 找到 PDF 链接 [{title[:20]}...]，正在下载...")
+            return download_file(pdf_url, final_filename, save_dir, logger)
         else:
             logger("[浏览器模式] 未找到公开下载链接。")
             return False

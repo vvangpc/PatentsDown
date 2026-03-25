@@ -152,8 +152,8 @@ class App(Tk):
                 return
             self.label_save_dir.configure(text=save_dir)
 
-        self.btn_download.configure(state="disabled", text="⏳ 正在下载...")
-        self.progress_bar.set(0.1)
+        self.after(0, lambda: self.btn_download.configure(state="disabled", text="⏳ 正在下载..."))
+        self.after(0, lambda: self.progress_bar.set(0.1))
 
         threading.Thread(target=self.process_all,
                          args=(pub_number, pdf_path, save_dir),
@@ -186,18 +186,18 @@ class App(Tk):
 
         if not all_downloads:
             self.log("没有需要下载的文件。")
-            self.btn_download.configure(state="normal", text="🚀 开始下载")
-            self.progress_bar.set(0)
+            self.after(0, lambda: self.btn_download.configure(state="normal", text="🚀 开始下载"))
+            self.after(0, lambda: self.progress_bar.set(0))
             return
 
-        self.progress_bar.set(0.3)
+        self.after(0, lambda: self.progress_bar.set(0.3))
         total = len(all_downloads)
         self.log(f"\n>> 共 {total} 个文件待下载，正在初始化下载器...")
         self.log("（初次启动可能需要下载 WebDriver，请耐心等待）")
 
         success_count = process_downloads(all_downloads, save_dir, log_callback=self.log)
 
-        self.progress_bar.set(1.0)
+        self.after(0, lambda: self.progress_bar.set(1.0))
         self.log(f"\n===== 任务完成 =====")
         self.log(f"共需下载 {total} 个文件，成功 {success_count} 个")
         self.log(f"文件保存在: {save_dir}")
@@ -208,11 +208,14 @@ class App(Tk):
             self.log(f"\n⚠️ 以下 {failed_count} 个文件下载失败，请手动处理：")
             # 这里的 all_downloads 包含了所有提取的号，对比实际保存的文件
             for label, pn in all_downloads:
-                if not os.path.exists(os.path.join(save_dir, f"{label}-{pn}.pdf")):
+                # 由于文件名现在包含标题，需要模糊搜索以 label-pn 开头的文件
+                prefix = f"{label}-{pn}"
+                found = any(f.startswith(prefix) and f.lower().endswith(".pdf") for f in os.listdir(save_dir))
+                if not found:
                     self.log(f"{pn}") # 只打印纯专利号，方便直接复制去网页搜索
         # ------------------------------
 
-        self.btn_download.configure(state="normal", text="🚀 开始下载")
+        self.after(0, lambda: self.btn_download.configure(state="normal", text="🚀 开始下载"))
         self.after(0, lambda: messagebox.showinfo("完成",
             f"任务已完成！\n成功下载 {success_count}/{total} 个文件。\n保存位置: {save_dir}"))
 

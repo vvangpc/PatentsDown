@@ -41,8 +41,8 @@ def extract_patent_numbers(text):
     seen = set()
     ordered_patents = []
     
-    # 匹配以 CN, US, WO, EP, JP, KR 开头，紧跟数字和可能的符号（/, -, 中划线等），最后可能带1-2位字母数字结尾
-    pattern = r"\b(CN|US|WO|EP|JP|KR)\s*[A-Z]?\s*[\d\-\/]+\s*[A-Z0-9]{0,2}\b"
+    # 匹配以 CN, US, WO, EP, JP, KR, DE, FR, GB, TW, AU 开头，紧跟数字和可能的符号（/, -, 中划线等），最后可能带1-2位字母数字结尾
+    pattern = r"\b(CN|US|WO|EP|JP|KR|DE|FR|GB|TW|AU)\s*[A-Z]?\s*[\d\-\/]+\s*[A-Z0-9]{0,2}\b"
     
     matches = re.finditer(pattern, text, re.IGNORECASE)
     for m in matches:
