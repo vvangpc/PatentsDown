@@ -102,10 +102,13 @@ class App(Tk):
         self.textbox_log.pack(pady=(0, 10), padx=20, fill="both", expand=True)
 
     def log(self, text):
-        self.textbox_log.configure(state="normal")
-        self.textbox_log.insert("end", text + "\n")
-        self.textbox_log.see("end")
-        self.textbox_log.configure(state="disabled")
+        # 使用 after 将界面更新操作推回主线程，防止软件闪退崩溃
+        def update_ui():
+            self.textbox_log.configure(state="normal")
+            self.textbox_log.insert("end", text + "\n")
+            self.textbox_log.see("end")
+            self.textbox_log.configure(state="disabled")
+        self.after(0, update_ui)
 
     def on_drop(self, event):
         files = self.tk.splitlist(event.data)
@@ -198,6 +201,16 @@ class App(Tk):
         self.log(f"\n===== 任务完成 =====")
         self.log(f"共需下载 {total} 个文件，成功 {success_count} 个")
         self.log(f"文件保存在: {save_dir}")
+
+        # --- 新增：失败清单集中展示 ---
+        failed_count = total - success_count
+        if failed_count > 0:
+            self.log(f"\n⚠️ 以下 {failed_count} 个文件下载失败，请手动处理：")
+            # 这里的 all_downloads 包含了所有提取的号，对比实际保存的文件
+            for label, pn in all_downloads:
+                if not os.path.exists(os.path.join(save_dir, f"{label}-{pn}.pdf")):
+                    self.log(f"{pn}") # 只打印纯专利号，方便直接复制去网页搜索
+        # ------------------------------
 
         self.btn_download.configure(state="normal", text="🚀 开始下载")
         self.after(0, lambda: messagebox.showinfo("完成",

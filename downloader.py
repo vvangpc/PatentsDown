@@ -29,6 +29,12 @@ HEADERS = {
 
 def download_file(url, filename, save_dir, logger, max_retries=3):
     """下载文件到本地，支持自动重试"""
+    save_path = os.path.join(save_dir, f"{filename}.pdf")
+    # 如果文件已存在，且大于 50KB（结合了上一次的防坑校验），则直接跳过
+    if os.path.exists(save_path) and os.path.getsize(save_path) > 50 * 1024:
+        logger(f"⏩ 文件已存在且完整，自动跳过: {filename}.pdf")
+        return True
+
     for attempt in range(1, max_retries + 1):
         try:
             response = requests.get(url, headers=HEADERS, stream=True, timeout=60)
@@ -39,7 +45,14 @@ def download_file(url, filename, save_dir, logger, max_retries=3):
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
-            logger(f"✅ 成功保存: {os.path.basename(save_path)}")
+            
+            # --- V2.0 升级：检查文件大小 ---
+            file_size = os.path.getsize(save_path)
+            if file_size < 50 * 1024:  # 小于 50KB
+                logger(f"⚠️ 警告：下载的文件过小 ({file_size / 1024:.1f} KB)，可能已损坏或被拦截（如验证码页面），请手动检查！")
+            else:
+                logger(f"✅ 成功保存: {os.path.basename(save_path)} ({file_size / 1024:.1f} KB)")
+            
             return True
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
             logger(f"网络错误 (第 {attempt}/{max_retries} 次尝试): {e}")
@@ -101,23 +114,19 @@ def download_via_requests(patent_number, save_dir, filename, logger):
 # ============================================================
 
 def init_driver(log_callback=print):
-    """初始化 Selenium 浏览器，带完整的防崩溃参数"""
+    """初始化 undetected-chromedriver 浏览器，带完整的防崩溃参数"""
     try:
-        from selenium import webdriver
+        import undetected_chromedriver as uc
         from selenium.webdriver.chrome.service import Service as ChromeService
-        from selenium.webdriver.chrome.options import Options
-        from webdriver_manager.chrome import ChromeDriverManager
     except ImportError as e:
-        log_callback(f"Selenium 相关库未安装: {e}")
+        log_callback(f"undetected-chromedriver 相关库未安装: {e}")
         return None
 
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
+    chrome_options = uc.ChromeOptions()
+    chrome_options.add_argument("--headless")  # 注意：某些情况下 headless 反爬能力稍弱，但这里先保留
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-software-rasterizer")
-    chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--log-level=3")  # 抑制控制台日志
     chrome_options.add_argument(
@@ -126,17 +135,13 @@ def init_driver(log_callback=print):
     )
 
     try:
-        driver_path = ChromeDriverManager().install()
-    except Exception:
-        log_callback("❌ ChromeDriver 驱动自动下载失败。请检查网络，或确保已安装 Google Chrome 浏览器。")
-        return None
-
-    try:
-        service = ChromeService(
-            executable_path=driver_path,
-            creation_flags=subprocess.CREATE_NO_WINDOW  # 防止 PyInstaller 无控制台崩溃
+        # undetected-chromedriver 会自动处理补丁与驱动下载
+        # 对于打包环境(PyInstaller)，可以通过 creation_flags 抑制窗口
+        driver = uc.Chrome(
+            options=chrome_options,
+            headless=True,  # 显式指定 headless
+            use_subprocess=True
         )
-        driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
         log_callback(f"❌ 浏览器启动失败，原因: {str(e)[:100]}...")

@@ -1,6 +1,7 @@
 customtkinter
 tkinterdnd2
 PyMuPDF
-selenium
-webdriver-manager
+requests
+undetected-chromedriver
+setuptools
 pyinstaller
