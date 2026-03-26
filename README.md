@@ -71,7 +71,7 @@ python main.py
 
 ### 方式三：下载 EXE（免安装）
 
-前往 [Releases](https://github.com/vvangpc/PatentsDown/releases) 页面下载最新的 `专利附件下载器_v2.1.exe`，双击即可运行。
+前往 [Releases](https://github.com/vvangpc/PatentsDown/releases) 页面下载最新的 `PatentsDownv2.1.exe`，双击即可运行。
 
 ---
 
