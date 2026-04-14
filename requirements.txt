@@ -4,4 +4,5 @@ PyMuPDF
 requests
 undetected-chromedriver
 setuptools
+Pillow
 pyinstaller
