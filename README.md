@@ -55,7 +55,7 @@
 
 ### 方式一：下载 EXE（推荐，免安装）
 
-前往 [Releases](https://github.com/vvangpc/PatentsDown/releases/latest) 页面下载最新的 `专利文件下载器_v3.0.exe`，双击即可运行，无需安装 Python 环境。
+直接下载 [PatentsDown_v3.0.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.0/PatentsDown_v3.0.exe)（46 MB），双击即可运行，无需安装 Python 环境。也可前往 [Releases](https://github.com/vvangpc/PatentsDown/releases/latest) 页面查看历史版本。
 
 ### 方式二：使用 uv（开发者推荐）
 
@@ -159,7 +159,7 @@ pyinstaller PatentsDown.spec --noconfirm --clean
 uv run pyinstaller PatentsDown.spec --noconfirm --clean
 ```
 
-生成的 EXE 位于 `dist/专利文件下载器_v3.0.exe`，单文件可独立运行。
+生成的 EXE 位于 `dist/专利文件下载器_v3.0.exe`（Release 页面以 ASCII 文件名 `PatentsDown_v3.0.exe` 上传），单文件可独立运行。
 
 ---
 
