@@ -42,7 +42,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='PatentsDown',
+    name='专利文件下载器_v3.0',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

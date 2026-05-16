@@ -1,0 +1,18 @@
+[project]
+name = "patentsdown"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "certifi>=2026.2.25",
+    "customtkinter>=5.2.2",
+    "pillow>=12.2.0",
+    "pyinstaller>=6.19.0",
+    "pymupdf>=1.27.2.2",
+    "requests>=2.33.1",
+    "setuptools>=82.0.1",
+    "tkinterdnd2>=0.4.3",
+    "undetected-chromedriver>=3.5.5",
+    "webdriver-manager>=4.0.2",
+]
