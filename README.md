@@ -1,4 +1,4 @@
-# 🚀 专利文件下载器 (PatentsDown) v3.0
+# 🚀 专利文件下载器 (PatentsDown) v3.1
 
 一款**零门槛即用**的 Windows 桌面工具，帮助专利代理人 / 审查员从 **审查意见通知书 PDF** 中自动提取对比文件专利号，或**手动输入公开号**，从 [Google Patents](https://patents.google.com/) 批量下载全文 PDF。
 
@@ -6,14 +6,19 @@
 
 ---
 
-## ✨ v3.0 新特性
+## ✨ v3.1 新特性
 
-- 🆕 **双模式标签页**：智能识别 PDF 与手动输入公开号两种工作流彻底分开，互不干扰。
-- 🆕 **模式二 · 手动输入**：动态行 + 2 列网格布局，默认 4 个输入框，可一键增删；输入若干公开号即可批量下载。
-- 🎨 **现代化 GUI 全面重做**：基于 `customtkinter` 重构布局，新图标、统一蓝色主题、紧凑面板、明暗模式自适应。
-- 📐 **紧凑布局**：默认窗口 800×660，更贴合主流笔记本屏幕；切换标签页时下方控件位置固定不抖动。
-- 🆕 **下载按钮归位**：[🚀 开始下载] 与 [📂 选择目录] 同行排列，节省纵向空间。
-- 🆕 **新图标**：蓝色渐变背景 + 白色 `P` 字母 + 向下箭头，标题栏、任务栏、EXE 三处统一。
+- 🆕 **Windows 右键菜单集成**：在资源管理器里右键任意 PDF → 「专利文件下载」即可启动 App 并自动加载到模式一，省去拖拽步骤。
+- 🆕 **CLI 参数支持**：`专利文件下载器_v3.1.exe "C:\path\to\审查意见.pdf"` 启动后自动切到模式一并预加载 PDF。
+- ⚙️ **App 内一键开关**：底部 [➕ 添加右键菜单] 按钮，写入仅当前用户的 HKCU 注册表，无需管理员权限；再次点击即可移除。
+- 🛡️ **路径过期检测**：移动 exe 后启动，App 会在日志中提示重新注册右键菜单。
+
+### v3.0 已有特性（保留）
+
+- **双模式标签页**：智能识别 PDF 与手动输入公开号两种工作流彻底分开，互不干扰。
+- **模式二 · 手动输入**：动态行 + 2 列网格布局，默认 4 个输入框，可一键增删。
+- **现代化 GUI**：基于 `customtkinter`，蓝色主题图标、紧凑布局、明暗模式自适应。
+- **紧凑窗口**：默认 800×660，切换标签页时下方控件位置固定不抖动。
 
 ---
 
@@ -55,7 +60,7 @@
 
 ### 方式一：下载 EXE（推荐，免安装）
 
-直接下载 [PatentsDown_v3.0.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.0/PatentsDown_v3.0.exe)（46 MB），双击即可运行，无需安装 Python 环境。也可前往 [Releases](https://github.com/vvangpc/PatentsDown/releases/latest) 页面查看历史版本。
+直接下载 [PatentsDown_v3.1.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.1/PatentsDown_v3.1.exe)（46 MB），双击即可运行，无需安装 Python 环境。也可前往 [Releases](https://github.com/vvangpc/PatentsDown/releases/latest) 页面查看历史版本。
 
 ### 方式二：使用 uv（开发者推荐）
 
@@ -111,6 +116,23 @@ python main.py
 - **增量下载**：再次运行同一任务时，工具会自动跳过已存在且大小 >50KB 的 PDF。
 - **失败处理**：任务结束后日志底部会列出失败专利号，复制后到 [Google Patents](https://patents.google.com/) 手动搜索下载。
 
+### 🪄 Windows 右键菜单集成（v3.1 新增）
+
+把 PDF 解析一步搞定：
+
+1. 把 `专利文件下载器_v3.1.exe` 放在一个**稳定的位置**（建议如 `C:\Tools\` 或固定的工作目录），双击启动。
+2. 在 App 右下角点 `[➕ 添加右键菜单]`，看到「已添加」提示后关闭 App。
+3. 之后在资源管理器里**右键任意 PDF** → 「专利文件下载」即可启动 App 并自动把该 PDF 加载到模式一，点 [🚀 开始下载] 直接下载。
+4. 不需要时在 App 内点 `[✓ 右键菜单已添加（点击移除）]` 即可移除。
+5. 若后续移动了 exe，下次启动时 App 会在日志里提示需要重新注册。
+
+**技术细节**：注册位置 `HKCU\Software\Classes\SystemFileAssociations\.pdf\shell\PatentsDown`，仅作用于当前用户、不需要管理员权限。注册项指向当前 exe 的绝对路径与图标。
+
+也可以通过命令行直接传入 PDF 路径达到同样效果：
+```powershell
+专利文件下载器_v3.1.exe "C:\path\to\审查意见.pdf"
+```
+
 ---
 
 ## 🏗️ 项目结构
@@ -120,6 +142,7 @@ PatentsDown/
 ├── main.py             # GUI 入口（customtkinter + tkinterdnd2，双标签页布局）
 ├── downloader.py       # 下载引擎（requests 直连 + Selenium 回退）
 ├── extractor.py        # PDF 解析（PyMuPDF 提取文本 + 正则匹配专利号）
+├── shell_menu.py       # Windows 右键菜单注册（HKCU winreg）— v3.1 新增
 ├── icon.ico            # 应用图标（多尺寸 ICO）
 ├── PatentsDown.spec    # PyInstaller 打包配置
 ├── pyproject.toml      # 项目元数据与依赖（uv 兼容）
@@ -128,7 +151,8 @@ PatentsDown/
 │   └── make_icon.py    # 图标生成脚本（Pillow）
 ├── docs/
 │   ├── screenshot_mode1.png
-│   └── screenshot_mode2.png
+│   ├── screenshot_mode2.png
+│   └── release_notes_v3.1.md
 └── README.md
 ```
 
@@ -159,13 +183,20 @@ pyinstaller PatentsDown.spec --noconfirm --clean
 uv run pyinstaller PatentsDown.spec --noconfirm --clean
 ```
 
-生成的 EXE 位于 `dist/专利文件下载器_v3.0.exe`（Release 页面以 ASCII 文件名 `PatentsDown_v3.0.exe` 上传），单文件可独立运行。
+生成的 EXE 位于 `dist/专利文件下载器_v3.1.exe`（Release 页面以 ASCII 文件名 `PatentsDown_v3.1.exe` 上传），单文件可独立运行。
 
 ---
 
 ## 📜 更新日志
 
-### v3.0（本次发布）
+### v3.1（本次发布）
+
+- Windows 资源管理器右键菜单集成 — 右键任意 PDF 即可启动并自动加载到模式一。
+- CLI 参数支持 — exe 可接受 PDF 路径作为第一个参数。
+- App 内 [➕ 添加 / 移除右键菜单] 一键开关（HKCU 注册，无需管理员）。
+- 右键菜单指向旧路径时自动在日志中提示重新注册。
+
+### v3.0
 
 - 双模式标签页：智能识别 / 手动输入分开为独立 Tab。
 - 模式二全新 — 2 列网格输入、动态行增删、按行优先重排。

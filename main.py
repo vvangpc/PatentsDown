@@ -7,10 +7,11 @@ import re
 from extractor import process_office_action, extract_text_from_first_page, extract_application_number
 from downloader import process_downloads
 from tkinter import messagebox, filedialog
+import shell_menu
 
 
 APP_NAME = "专利文件下载器"
-APP_VERSION = "v3.0"
+APP_VERSION = "v3.1"
 
 PRIMARY = "#1976D2"
 PRIMARY_HOVER = "#1565C0"
@@ -52,6 +53,10 @@ class App(Tk):
         self._build_header()
         self._build_tabs()
         self._build_shared_area()
+
+        # CLI 参数 + 右键菜单状态检测
+        self._handle_cli_arg()
+        self._check_shell_menu_stale()
 
     # ============================================================
     #  顶部标题
@@ -426,14 +431,33 @@ class App(Tk):
         )
         self.textbox_log.pack(pady=(2, 4), padx=20, fill="both", expand=True)
 
-        # --- 底部版本号 ---
+        # --- 底部：版本号 + 右键菜单设置按钮 ---
+        footer_frame = ctk.CTkFrame(self, fg_color="transparent")
+        footer_frame.pack(fill="x", padx=20, pady=(0, 4))
+
         self.footer = ctk.CTkLabel(
-            self,
+            footer_frame,
             text=f"{APP_VERSION}  |  PatentsDown",
             font=("Microsoft YaHei", 12),
             text_color=("gray65", "gray45"),
         )
-        self.footer.pack(pady=(0, 4))
+        self.footer.pack(side="left")
+
+        self.btn_shell_menu = ctk.CTkButton(
+            footer_frame,
+            text="",  # 在 _refresh_shell_menu_btn 中根据状态填充
+            font=("Microsoft YaHei", 11),
+            height=24,
+            corner_radius=6,
+            fg_color="transparent",
+            border_width=1,
+            text_color=ACCENT_TEXT,
+            border_color=(PRIMARY_LIGHT, PRIMARY_LIGHT_DARK),
+            hover_color=("gray92", "gray22"),
+            command=self._toggle_shell_menu,
+        )
+        self.btn_shell_menu.pack(side="right")
+        self._refresh_shell_menu_btn()
 
     # ============================================================
     #  申请号自动识别 + 点击复制
@@ -511,15 +535,81 @@ class App(Tk):
             self.progress_label.configure(text="正在初始化...")
 
     # ============================================================
+    #  CLI 参数 + 右键菜单
+    # ============================================================
+    def _handle_cli_arg(self):
+        """如果通过右键菜单 / 命令行传入了 PDF 路径，自动切到模式一并加载"""
+        if len(sys.argv) <= 1:
+            return
+        arg = sys.argv[1]
+        if not arg.lower().endswith(".pdf"):
+            return
+        pdf_path = os.path.abspath(arg)
+        if not os.path.isfile(pdf_path):
+            return
+        # 切到模式一并延迟加载（让 UI 渲染完成）
+        self.tabview.set("📄  模式一 · 智能识别")
+        self.after(200, lambda: self._load_pdf(pdf_path))
+
+    def _check_shell_menu_stale(self):
+        """如果右键菜单已注册但指向其它路径，提示用户重新注册"""
+        cur = shell_menu.get_exe_path()
+        reg = shell_menu.get_registered_command()
+        if not cur or not reg:
+            return
+        if cur not in reg:
+            self.log("⚠️ 检测到右键菜单指向旧路径，建议在底部点 [移除] 再 [添加] 重新注册。")
+
+    def _refresh_shell_menu_btn(self):
+        if shell_menu.is_registered():
+            self.btn_shell_menu.configure(
+                text="✓  右键菜单已添加（点击移除）", width=210
+            )
+        else:
+            self.btn_shell_menu.configure(text="➕  添加右键菜单", width=140)
+
+    def _toggle_shell_menu(self):
+        if shell_menu.is_registered():
+            shell_menu.unregister()
+            messagebox.showinfo("已移除", "右键菜单已从系统中移除。")
+            self._refresh_shell_menu_btn()
+            return
+
+        exe_path = shell_menu.get_exe_path()
+        if not exe_path:
+            messagebox.showwarning(
+                "无法注册",
+                "右键菜单仅能在打包后的 exe 中注册。\n\n"
+                "请先用 `pyinstaller PatentsDown.spec --noconfirm --clean` 打包，\n"
+                "然后运行 dist 目录下的 exe，再点此按钮。",
+            )
+            return
+
+        try:
+            shell_menu.register(exe_path)
+        except OSError as e:
+            messagebox.showerror("失败", f"注册失败：{e}")
+            return
+
+        messagebox.showinfo(
+            "已添加",
+            f"右键菜单已添加。\n\n"
+            f"现在可以在任何 PDF 文件上右键 → 「{shell_menu.MENU_TEXT}」\n"
+            f"App 会自动启动并把该 PDF 加载到模式一。\n\n"
+            f"若移动 exe 位置，请先移除再重新添加。",
+        )
+        self._refresh_shell_menu_btn()
+
+    # ============================================================
     #  拖拽 / 文件选择
     # ============================================================
-    def on_drop(self, event):
-        files = self.tk.splitlist(event.data)
-        if not files:
-            return
-        file_path = files[0]
+    def _load_pdf(self, file_path):
+        """统一的 PDF 加载入口：拖拽 / 点击选择 / CLI argv 都走这条路径"""
         if not file_path.lower().endswith(".pdf"):
-            self.log("错误：请拖入 PDF 文件！")
+            self.log("错误：请使用 PDF 文件！")
+            return
+        if not os.path.isfile(file_path):
+            self.log(f"错误：文件不存在 — {file_path}")
             return
         self.pdf_path = file_path
         self._on_drop_leave()
@@ -531,20 +621,19 @@ class App(Tk):
         self.log(f"已选择文件: {os.path.basename(file_path)}")
         self._extract_and_show_app_number(file_path)
 
+    def on_drop(self, event):
+        files = self.tk.splitlist(event.data)
+        if not files:
+            return
+        self._load_pdf(files[0])
+
     def on_click_select(self, event=None):
         file_path = filedialog.askopenfilename(
             title="选择审查意见通知书 PDF",
             filetypes=[("PDF 文件", "*.pdf")],
         )
         if file_path:
-            self.pdf_path = file_path
-            self.label_drop.configure(
-                text=f"✅  {os.path.basename(file_path)}", text_color="green"
-            )
-            self.label_save_dir.configure(text=os.path.dirname(file_path))
-            self.manual_save_dir = None
-            self.log(f"已选择文件: {os.path.basename(file_path)}")
-            self._extract_and_show_app_number(file_path)
+            self._load_pdf(file_path)
 
     def _choose_save_dir(self):
         save_dir = filedialog.askdirectory(title="请选择下载文件的保存目录")
