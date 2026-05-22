@@ -1,0 +1,52 @@
+name: Build & Release
+
+# 打 tag（如 v3.2）时自动构建便携版 + 安装版，并发布到对应 Release。
+# 也可在 Actions 页面手动触发（workflow_dispatch）只产出构建产物。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install customtkinter tkinterdnd2 pillow pymupdf requests selenium certifi setuptools pyinstaller
+
+      - name: Build portable (single-file)
+        run: pyinstaller PatentsDown.spec --noconfirm --clean
+
+      - name: Build onedir (for installer)
+        run: pyinstaller PatentsDown-dir.spec --noconfirm --clean
+
+      - name: Build installer (Inno Setup)
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PatentsDown-v3.2
+          path: |
+            dist/PatentsDown_v3.2_Portable.exe
+            dist/PatentsDown_v3.2_Setup.exe
+
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/PatentsDown_v3.2_Portable.exe
+            dist/PatentsDown_v3.2_Setup.exe

@@ -11,7 +11,7 @@ import shell_menu
 
 
 APP_NAME = "专利文件下载器"
-APP_VERSION = "v3.1"
+APP_VERSION = "v3.2"
 
 PRIMARY = "#1976D2"
 PRIMARY_HOVER = "#1565C0"

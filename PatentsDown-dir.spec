@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+# 目录(onedir)打包配置：用于生成安装版，启动速度远快于单文件版。
 from PyInstaller.utils.hooks import collect_all
 
 datas = [('icon.ico', '.')]
@@ -37,16 +38,13 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
-    name='PatentsDown_v3.2_Portable',
+    exclude_binaries=True,
+    name='PatentsDown',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -54,4 +52,13 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='icon.ico',
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='PatentsDown',
 )
