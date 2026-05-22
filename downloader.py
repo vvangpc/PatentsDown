@@ -20,12 +20,30 @@ if sys.stderr is None:
 #  通用工具函数
 # ============================================================
 
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+       "AppleWebKit/537.36 (KHTML, like Gecko) "
+       "Chrome/120.0.0.0 Safari/537.36")
+
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": _UA,
+    "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+               "image/avif,image/webp,*/*;q=0.8"),
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": "https://patents.google.com/",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+    "sec-ch-ua": '"Chromium";v="120", "Not(A:Brand";v="24", "Google Chrome";v="120"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
 }
+
+# 全局会话，复用连接并保留 cookie，降低被 Google 限流的概率
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
 
 
 def download_file(url, filename, save_dir, logger, max_retries=3):
@@ -38,7 +56,7 @@ def download_file(url, filename, save_dir, logger, max_retries=3):
 
     for attempt in range(1, max_retries + 1):
         try:
-            response = requests.get(url, headers=HEADERS, stream=True, timeout=60)
+            response = SESSION.get(url, stream=True, timeout=60)
             response.raise_for_status()
 
             save_path = os.path.join(save_dir, f"{filename}.pdf")
@@ -80,7 +98,22 @@ def download_via_requests(patent_number, save_dir, filename, logger):
     try:
         url = f"https://patents.google.com/patent/{patent_number}/en"
         logger(f"[直连模式] 访问: {url}")
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+
+        # 针对 503/429（Google 反爬软封锁）做指数退避重试
+        resp = None
+        backoffs = [5, 15]  # 重试 2 次
+        for i in range(len(backoffs) + 1):
+            resp = SESSION.get(url, timeout=20)
+            if resp.status_code in (503, 429):
+                if i < len(backoffs):
+                    wait = backoffs[i]
+                    logger(f"[直连模式] 收到 {resp.status_code}（Google 限流），"
+                           f"{wait} 秒后重试（{i + 1}/{len(backoffs)}）...")
+                    time.sleep(wait)
+                    continue
+                logger(f"[直连模式] 多次重试仍返回 {resp.status_code}，转浏览器模式")
+                return False
+            break
         resp.raise_for_status()
         html = resp.text
 
@@ -113,38 +146,56 @@ def download_via_requests(patent_number, save_dir, filename, logger):
 #  方案二: Selenium 浏览器模式 (Fallback)
 # ============================================================
 
+def find_chrome():
+    """探测本机 Google Chrome 可执行文件路径，找不到返回 None"""
+    candidates = [
+        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"),
+                     r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                     r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""),
+                     r"Google\Chrome\Application\chrome.exe"),
+    ]
+    for path in candidates:
+        if path and os.path.exists(path):
+            return path
+    return None
+
+
 def init_driver(log_callback=print):
-    """初始化 undetected-chromedriver 浏览器，带完整的防崩溃参数"""
+    """初始化标准 Selenium Chrome 浏览器（可见窗口）。
+    Selenium 4.6+ 内置 Selenium Manager，会自动匹配本机 Chrome 版本下载驱动。"""
     try:
-        import undetected_chromedriver as uc
-        from selenium.webdriver.chrome.service import Service as ChromeService
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
     except ImportError as e:
-        log_callback(f"undetected-chromedriver 相关库未安装: {e}")
+        log_callback(f"❌ selenium 库未安装: {e}")
         return None
 
-    chrome_options = uc.ChromeOptions()
-    chrome_options.add_argument("--headless")  # 注意：某些情况下 headless 反爬能力稍弱，但这里先保留
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("--log-level=3")  # 抑制控制台日志
-    chrome_options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
+    chrome_path = find_chrome()
+    if not chrome_path:
+        log_callback("❌ 未检测到 Google Chrome，请先安装 Chrome 后重试。")
+        return None
+
+    options = Options()
+    options.binary_location = chrome_path
+    # 可见窗口模式：不加 --headless，便于用户手动过人机验证
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1280,900")
+    options.add_argument("--log-level=3")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument(f"user-agent={_UA}")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
 
     try:
-        # undetected-chromedriver 会自动处理补丁与驱动下载
-        # 对于打包环境(PyInstaller)，可以通过 creation_flags 抑制窗口
-        driver = uc.Chrome(
-            options=chrome_options,
-            headless=True,  # 显式指定 headless
-            use_subprocess=True
-        )
+        driver = webdriver.Chrome(options=options)
         return driver
     except Exception as e:
-        log_callback(f"❌ 浏览器启动失败，原因: {str(e)[:100]}...")
+        log_callback(f"❌ 浏览器启动失败，原因: {str(e)[:200]}")
+        log_callback("   （请确认 Chrome 已正常安装，且能联网下载匹配的 chromedriver）")
         return None
 
 def download_via_selenium(driver, patent_number, save_dir, filename, logger):
@@ -161,17 +212,18 @@ def download_via_selenium(driver, patent_number, save_dir, filename, logger):
         url = f"https://patents.google.com/patent/{patent_number}/en"
         driver.get(url)
 
-        # 检测 reCAPTCHA
+        # 检测 reCAPTCHA：不再直接跳过，而是等用户在可见窗口里手动过验证
+        wait_timeout = 15
         page_src = driver.page_source.lower()
         if "recaptcha" in page_src or "captcha" in page_src or "unusual traffic" in page_src:
-            logger("⚠️ 触发 Google 频繁访问验证，当前文件跳过下载")
-            return False
+            logger("⚠️ 检测到人机验证，请在弹出的浏览器窗口中完成验证，"
+                   "程序将自动继续（最多等待 180 秒）...")
+            wait_timeout = 180
 
-
-        # 显式等待（最多 10 秒）
+        # 显式等待 PDF 链接出现
         pdf_xpath = "//a[contains(@href, 'patentimages.storage.googleapis.com') and contains(@href, '.pdf')]"
         try:
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver, wait_timeout).until(
                 EC.presence_of_element_located((By.XPATH, pdf_xpath))
             )
         except Exception:
