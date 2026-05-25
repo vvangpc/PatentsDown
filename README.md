@@ -1,4 +1,4 @@
-# 🚀 专利文件下载器 (PatentsDown) v3.2
+# 🚀 专利文件下载器 (PatentsDown) v3.3
 
 一款**零门槛即用**的 Windows 桌面工具，帮助专利代理人 / 审查员从 **审查意见通知书 PDF** 中自动提取对比文件专利号，或**手动输入公开号**，从 [Google Patents](https://patents.google.com/) 批量下载全文 PDF。
 
@@ -6,16 +6,15 @@
 
 ---
 
-## ✨ v3.2 新特性
+## ✨ v3.3 新特性
 
-- 🐛 **修复直连下载失败** — 直连模式补全拟真浏览器请求头，并对 Google `503 / 429` 限流响应做指数退避重试，显著降低「直连失败」概率。
-- 🐛 **修复浏览器兜底无法启动** — 弃用过旧的 `undetected-chromedriver`，改用标准 `Selenium`（内置 Selenium Manager 自动匹配驱动），可正常驱动 Chrome 148+。
-- 🪟 **可见窗口 + 手动过验证** — 浏览器兜底改为弹出真实窗口，遇到人机验证时可手动通过，程序自动继续。
-- 📦 **新增安装版** — 提供 Inno Setup 安装包（目录打包），**启动速度远快于单文件便携版**；安装到当前用户目录，无需管理员权限。
-- 🤖 **GitHub Actions 自动构建** — 推送 `v*` 标签即自动构建便携版与安装版并发布到 Release。
+- 🐛 **修复长路径挤出按钮** — 「保存目录」行的路径过长时不再把「选择目录 / 开始下载」按钮挤出可视区，按钮在任何窗口宽度下都保持完整可见。
+- ✂️ **路径中部省略显示** — 超长路径以 `C:\Users\...\folder` 形式紧凑显示，鼠标悬停可弹出 tooltip 查看完整路径。
 
 ### 历史特性（保留）
 
+- **下载稳定性提升**（v3.2）：直连模式拟真请求头 + 503/429 指数退避重试；浏览器兜底用标准 Selenium 驱动 Chrome 148+，弹出可见窗口便于手动过验证。
+- **安装版 + GitHub Actions 自动构建**（v3.2）：Inno Setup 安装包启动更快；推送 `v*` 标签即触发自动构建发布。
 - **Windows 右键菜单集成**（v3.1）：右键任意 PDF → 「专利文件下载」即可启动并自动加载到模式一。
 - **CLI 参数支持**（v3.1）：exe 可接受 PDF 路径作为第一个参数。
 - **双模式标签页**（v3.0）：智能识别 PDF 与手动输入公开号两种工作流彻底分开。
@@ -65,8 +64,8 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| **[PatentsDown_v3.2_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.2/PatentsDown_v3.2_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
-| **[PatentsDown_v3.2_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.2/PatentsDown_v3.2_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
+| **[PatentsDown_v3.3_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.3/PatentsDown_v3.3_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
+| **[PatentsDown_v3.3_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.3/PatentsDown_v3.3_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
 
 均无需安装 Python 环境，开箱即用。
 
@@ -129,7 +128,7 @@ python main.py
 
 把 PDF 解析一步搞定：
 
-1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.2_Portable.exe`）放在一个**稳定的位置**，双击启动。
+1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.3_Portable.exe`）放在一个**稳定的位置**，双击启动。
 2. 在 App 右下角点 `[➕ 添加右键菜单]`，看到「已添加」提示后关闭 App。
 3. 之后在资源管理器里**右键任意 PDF** → 「专利文件下载」即可启动 App 并自动把该 PDF 加载到模式一，点 [🚀 开始下载] 直接下载。
 4. 不需要时在 App 内点 `[✓ 右键菜单已添加（点击移除）]` 即可移除。
@@ -139,7 +138,7 @@ python main.py
 
 也可以通过命令行直接传入 PDF 路径达到同样效果：
 ```powershell
-PatentsDown_v3.2_Portable.exe "C:\path\to\审查意见.pdf"
+PatentsDown_v3.3_Portable.exe "C:\path\to\审查意见.pdf"
 ```
 
 ---
@@ -168,7 +167,8 @@ PatentsDown/
 │   ├── screenshot_mode2.png
 │   ├── release_notes_v3.0.md
 │   ├── release_notes_v3.1.md
-│   └── release_notes_v3.2.md
+│   ├── release_notes_v3.2.md
+│   └── release_notes_v3.3.md
 └── README.md
 ```
 
@@ -194,12 +194,12 @@ PatentsDown/
 ```bash
 # 便携版（单文件）
 pyinstaller PatentsDown.spec --noconfirm --clean
-# → dist/PatentsDown_v3.2_Portable.exe
+# → dist/PatentsDown_v3.3_Portable.exe
 
 # 安装版：先目录打包，再用 Inno Setup 生成安装包
 pyinstaller PatentsDown-dir.spec --noconfirm --clean
 ISCC.exe installer.iss
-# → dist/PatentsDown_v3.2_Setup.exe
+# → dist/PatentsDown_v3.3_Setup.exe
 ```
 
 > 也可直接推送 `v*` 标签，由 GitHub Actions（`.github/workflows/build.yml`）自动完成上述两种构建并发布到 Release。
@@ -208,7 +208,13 @@ ISCC.exe installer.iss
 
 ## 📜 更新日志
 
-### v3.2（本次发布）
+### v3.3（本次发布）
+
+- 修复「保存目录」长路径把「选择目录 / 开始下载」按钮挤出可视区的 UI bug。
+- 路径以中部 `...` 省略显示（如 `C:\Users\Administrator\...\zip_2104`），鼠标悬停可弹出 tooltip 显示完整路径。
+- 调整路径行 pack 顺序，按钮在任何窗口宽度下都保持完整可见。
+
+### v3.2
 
 - 修复直连模式 503 反爬失败 — 补全拟真请求头并对 503/429 做指数退避重试。
 - 修复浏览器兜底无法启动 — 弃用 `undetected-chromedriver`，改用标准 `Selenium`，支持 Chrome 148+。

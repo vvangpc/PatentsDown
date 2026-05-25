@@ -6,12 +6,99 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 import re
 from extractor import process_office_action, extract_text_from_first_page, extract_application_number
 from downloader import process_downloads
+import tkinter as tk
 from tkinter import messagebox, filedialog
 import shell_menu
 
 
+def _shorten_path(full_path: str, max_chars: int = 60) -> str:
+    """中部省略截断长路径，尽量按路径分隔符切分，保留盘符头和末层目录名。"""
+    if not full_path or len(full_path) <= max_chars:
+        return full_path
+
+    normalized = full_path.replace("/", "\\")
+    parts = normalized.split("\\")
+    if len(parts) < 3:
+        keep_head = max_chars // 3
+        keep_tail = max_chars - keep_head - 3
+        return f"{full_path[:keep_head]}...{full_path[-keep_tail:]}"
+
+    head = parts[0] + "\\"
+    tail = parts[-1]
+    budget = max_chars - len(head) - len(tail) - 5  # 5 = len("...\\")  approx
+    # 从倒数第二段开始向前累加，尽量塞入更多尾部目录段
+    tail_segments = [tail]
+    for seg in reversed(parts[1:-1]):
+        if len(seg) + 1 <= budget:
+            tail_segments.insert(0, seg)
+            budget -= len(seg) + 1
+        else:
+            break
+    return head + "...\\" + "\\".join(tail_segments)
+
+
+class _PathTooltip:
+    """简易 tooltip：鼠标悬停在 widget 上延迟弹出 Toplevel 显示完整文本。"""
+
+    def __init__(self, widget, text_getter, delay_ms: int = 400):
+        self.widget = widget
+        self.text_getter = text_getter
+        self.delay_ms = delay_ms
+        self._after_id = None
+        self._tip = None
+        widget.bind("<Enter>", self._on_enter, add="+")
+        widget.bind("<Leave>", self._on_leave, add="+")
+        widget.bind("<ButtonPress>", self._on_leave, add="+")
+
+    def _on_enter(self, _event=None):
+        self._cancel()
+        self._after_id = self.widget.after(self.delay_ms, self._show)
+
+    def _on_leave(self, _event=None):
+        self._cancel()
+        if self._tip is not None:
+            try:
+                self._tip.destroy()
+            except Exception:
+                pass
+            self._tip = None
+
+    def _cancel(self):
+        if self._after_id is not None:
+            try:
+                self.widget.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
+
+    def _show(self):
+        text = self.text_getter()
+        if not text:
+            return
+        x = self.widget.winfo_rootx() + 10
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        tip = tk.Toplevel(self.widget)
+        tip.wm_overrideredirect(True)
+        tip.wm_geometry(f"+{x}+{y}")
+        tip.attributes("-topmost", True)
+        label = tk.Label(
+            tip,
+            text=text,
+            justify="left",
+            background="#FFFFE0",
+            foreground="#000000",
+            relief="solid",
+            borderwidth=1,
+            font=("Microsoft YaHei", 9),
+            padx=6,
+            pady=3,
+        )
+        label.pack()
+        self._tip = tip
+
+
 APP_NAME = "专利文件下载器"
-APP_VERSION = "v3.2"
+APP_VERSION = "v3.3"
 
 PRIMARY = "#1976D2"
 PRIMARY_HOVER = "#1565C0"
@@ -326,25 +413,14 @@ class App(Tk):
     # ============================================================
     def _build_shared_area(self):
         # --- 保存目录行（同行包含选择目录 + 开始下载两个按钮） ---
+        # 完整真实路径存在 self._save_dir_full，标签显示截断后的版本，避免挤压右侧按钮。
+        self._save_dir_full = ""
+
         dir_frame = ctk.CTkFrame(self, fg_color="transparent")
         dir_frame.pack(pady=(6, 2), padx=20, fill="x")
 
-        ctk.CTkLabel(
-            dir_frame,
-            text="保存目录:",
-            font=("Microsoft YaHei", 14, "bold"),
-        ).pack(side="left", padx=(0, 6))
-
-        self.label_save_dir = ctk.CTkLabel(
-            dir_frame,
-            text="（模式一自动使用 PDF 所在目录；模式二请点右侧选择）",
-            font=("Microsoft YaHei", 13),
-            text_color="gray",
-            anchor="w",
-        )
-        self.label_save_dir.pack(side="left", fill="x", expand=True)
-
-        # 右侧两个按钮：先 pack 下载按钮（side="right" 最右），再 pack 选择目录（紧靠下载左侧）
+        # pack 顺序：先把两个按钮按 side="right" 放好，再放左侧标签 + 路径。
+        # 这样按钮的 reqwidth 优先占位，路径标签只在剩余空间内伸缩。
         self.btn_download = ctk.CTkButton(
             dir_frame,
             text="🚀  开始下载",
@@ -372,6 +448,23 @@ class App(Tk):
             hover_color=("gray92", "gray22"),
             command=self._choose_save_dir,
         ).pack(side="right")
+
+        ctk.CTkLabel(
+            dir_frame,
+            text="保存目录:",
+            font=("Microsoft YaHei", 14, "bold"),
+        ).pack(side="left", padx=(0, 6))
+
+        self.label_save_dir = ctk.CTkLabel(
+            dir_frame,
+            text="（模式一自动使用 PDF 所在目录；模式二请点右侧选择）",
+            font=("Microsoft YaHei", 13),
+            text_color="gray",
+            anchor="w",
+        )
+        self.label_save_dir.pack(side="left", fill="x", expand=True)
+
+        _PathTooltip(self.label_save_dir, lambda: self._save_dir_full)
 
         # --- 进度区 ---
         progress_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -616,7 +709,7 @@ class App(Tk):
         self.label_drop.configure(
             text=f"✅  {os.path.basename(file_path)}", text_color="green"
         )
-        self.label_save_dir.configure(text=os.path.dirname(file_path))
+        self._set_save_dir_display(os.path.dirname(file_path))
         self.manual_save_dir = None
         self.log(f"已选择文件: {os.path.basename(file_path)}")
         self._extract_and_show_app_number(file_path)
@@ -635,11 +728,15 @@ class App(Tk):
         if file_path:
             self._load_pdf(file_path)
 
+    def _set_save_dir_display(self, full_path: str):
+        self._save_dir_full = full_path or ""
+        self.label_save_dir.configure(text=_shorten_path(self._save_dir_full))
+
     def _choose_save_dir(self):
         save_dir = filedialog.askdirectory(title="请选择下载文件的保存目录")
         if save_dir:
             self.manual_save_dir = save_dir
-            self.label_save_dir.configure(text=save_dir)
+            self._set_save_dir_display(save_dir)
 
     # ============================================================
     #  下载分发：根据当前 Tab 收集下载列表
@@ -718,7 +815,7 @@ class App(Tk):
         save_dir = filedialog.askdirectory(title="请选择下载文件的保存目录")
         if save_dir:
             self.manual_save_dir = save_dir
-            self.label_save_dir.configure(text=save_dir)
+            self._set_save_dir_display(save_dir)
             return save_dir
         return None
 
