@@ -98,7 +98,7 @@ class _PathTooltip:
 
 
 APP_NAME = "专利文件下载器"
-APP_VERSION = "v3.3"
+APP_VERSION = "v3.4"
 
 PRIMARY = "#1976D2"
 PRIMARY_HOVER = "#1565C0"
@@ -782,10 +782,16 @@ class App(Tk):
         if self.pdf_path:
             self.log(">> 正在解析审查意见通知书 PDF 第一页...")
             self.after(0, lambda: self.progress_label.configure(text="正在解析 PDF..."))
-            success, _app_number, result = process_office_action(self.pdf_path)
+            success, _app_number, result, skipped = process_office_action(self.pdf_path)
             if success and result:
                 display_list = ", ".join([f"{label}-{pn}" for label, pn in result])
                 self.log(f"成功识别 {len(result)} 个对比文件: {display_list}")
+                for n, raw in skipped:
+                    if n == 0:
+                        # 终极回退路径下发的告警提示
+                        self.log(raw)
+                    else:
+                        self.log(f"⏭️ 编号 {n} 为非专利文献，已跳过下载：{raw}")
                 results.extend(result)
             else:
                 if isinstance(result, str):

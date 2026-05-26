@@ -1,4 +1,4 @@
-# 🚀 专利文件下载器 (PatentsDown) v3.3
+# 🚀 专利文件下载器 (PatentsDown) v3.4
 
 一款**零门槛即用**的 Windows 桌面工具，帮助专利代理人 / 审查员从 **审查意见通知书 PDF** 中自动提取对比文件专利号，或**手动输入公开号**，从 [Google Patents](https://patents.google.com/) 批量下载全文 PDF。
 
@@ -6,13 +6,14 @@
 
 ---
 
-## ✨ v3.3 新特性
+## ✨ v3.4 新特性
 
-- 🐛 **修复长路径挤出按钮** — 「保存目录」行的路径过长时不再把「选择目录 / 开始下载」按钮挤出可视区，按钮在任何窗口宽度下都保持完整可见。
-- ✂️ **路径中部省略显示** — 超长路径以 `C:\Users\...\folder` 形式紧凑显示，鼠标悬停可弹出 tooltip 查看完整路径。
+- 🐛 **修复对比文件 D 标号错位** — OA 通知书首页对比文件表中若有非专利文献（如论文），现按 OA「编号」列对齐 D 标号，非专利行跳过下载并在日志中以 `⏭️ 编号 N 为非专利文献` 提示，不再让后续 D2/D3/... 全部上移。
+- 🧩 **表格结构感知解析** — 优先用 PyMuPDF `find_tables()` 读取「编号 / 文件号或名称 / 公开日期」三列；表格识别失败时回退到启发式行分组，仍按编号列对齐；都失败时落到旧的全文正则并给出警告。
 
 ### 历史特性（保留）
 
+- **长路径挤出按钮修复**（v3.3）：「保存目录」行的路径过长时不再把按钮挤出可视区；超长路径以 `C:\Users\...\folder` 形式紧凑显示，悬停看完整路径。
 - **下载稳定性提升**（v3.2）：直连模式拟真请求头 + 503/429 指数退避重试；浏览器兜底用标准 Selenium 驱动 Chrome 148+，弹出可见窗口便于手动过验证。
 - **安装版 + GitHub Actions 自动构建**（v3.2）：Inno Setup 安装包启动更快；推送 `v*` 标签即触发自动构建发布。
 - **Windows 右键菜单集成**（v3.1）：右键任意 PDF → 「专利文件下载」即可启动并自动加载到模式一。
@@ -64,8 +65,8 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| **[PatentsDown_v3.3_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.3/PatentsDown_v3.3_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
-| **[PatentsDown_v3.3_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.3/PatentsDown_v3.3_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
+| **[PatentsDown_v3.4_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.4/PatentsDown_v3.4_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
+| **[PatentsDown_v3.4_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.4/PatentsDown_v3.4_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
 
 均无需安装 Python 环境，开箱即用。
 
@@ -128,7 +129,7 @@ python main.py
 
 把 PDF 解析一步搞定：
 
-1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.3_Portable.exe`）放在一个**稳定的位置**，双击启动。
+1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.4_Portable.exe`）放在一个**稳定的位置**，双击启动。
 2. 在 App 右下角点 `[➕ 添加右键菜单]`，看到「已添加」提示后关闭 App。
 3. 之后在资源管理器里**右键任意 PDF** → 「专利文件下载」即可启动 App 并自动把该 PDF 加载到模式一，点 [🚀 开始下载] 直接下载。
 4. 不需要时在 App 内点 `[✓ 右键菜单已添加（点击移除）]` 即可移除。
@@ -138,7 +139,7 @@ python main.py
 
 也可以通过命令行直接传入 PDF 路径达到同样效果：
 ```powershell
-PatentsDown_v3.3_Portable.exe "C:\path\to\审查意见.pdf"
+PatentsDown_v3.4_Portable.exe "C:\path\to\审查意见.pdf"
 ```
 
 ---
@@ -168,7 +169,8 @@ PatentsDown/
 │   ├── release_notes_v3.0.md
 │   ├── release_notes_v3.1.md
 │   ├── release_notes_v3.2.md
-│   └── release_notes_v3.3.md
+│   ├── release_notes_v3.3.md
+│   └── release_notes_v3.4.md
 └── README.md
 ```
 
@@ -194,12 +196,12 @@ PatentsDown/
 ```bash
 # 便携版（单文件）
 pyinstaller PatentsDown.spec --noconfirm --clean
-# → dist/PatentsDown_v3.3_Portable.exe
+# → dist/PatentsDown_v3.4_Portable.exe
 
 # 安装版：先目录打包，再用 Inno Setup 生成安装包
 pyinstaller PatentsDown-dir.spec --noconfirm --clean
 ISCC.exe installer.iss
-# → dist/PatentsDown_v3.3_Setup.exe
+# → dist/PatentsDown_v3.4_Setup.exe
 ```
 
 > 也可直接推送 `v*` 标签，由 GitHub Actions（`.github/workflows/build.yml`）自动完成上述两种构建并发布到 Release。
@@ -208,7 +210,13 @@ ISCC.exe installer.iss
 
 ## 📜 更新日志
 
-### v3.3（本次发布）
+### v3.4（本次发布）
+
+- 修复 OA 通知书对比文件 D 标号错位 — 当首页表格里含非专利文献（论文等）时，D 标号现严格对齐 OA「编号」列，非专利行跳过下载并在日志提示。
+- 表格结构感知解析：PyMuPDF `find_tables()` 主路径 + 启发式行分组回退 + 旧版全文正则终极回退（落到终极回退时给出明确警告）。
+- `process_office_action` 返回签名扩展为 4-tuple，新增 `skipped_list`，便于上层把跳过的非专利文献写入运行日志。
+
+### v3.3
 
 - 修复「保存目录」长路径把「选择目录 / 开始下载」按钮挤出可视区的 UI bug。
 - 路径以中部 `...` 省略显示（如 `C:\Users\Administrator\...\zip_2104`），鼠标悬停可弹出 tooltip 显示完整路径。
