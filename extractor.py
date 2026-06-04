@@ -28,6 +28,36 @@ def extract_text_from_first_page(pdf_path):
         return ""
 
 
+def is_image_pdf(pdf_path, sample_pages=5, min_chars_per_page=10):
+    """
+    判断 PDF 是否为「图片型 / 扫描件」——即没有可提取的文字层、无法直接复制粘贴。
+    返回 (is_image: bool, reason: str)。
+
+    策略：抽样前 sample_pages 页，统计 page.get_text() 可提取的文字字符数。
+    文字型 PDF 每页通常上百~上千字符，扫描件每页 0 字符，区分度极大，
+    故阈值不敏感；平均每页可提取字符数 < min_chars_per_page 即判定为图片型。
+    检测失败一律返回 (False, "")，不阻断主流程。
+    """
+    try:
+        doc = fitz.open(pdf_path)
+        page_count = len(doc)
+        if page_count == 0:
+            doc.close()
+            return False, ""          # 空文件交给大小校验处理，不在此误报
+        n = min(sample_pages, page_count)
+        total_chars = 0
+        for i in range(n):
+            total_chars += len((doc[i].get_text() or "").strip())
+        doc.close()
+        avg = total_chars / n
+        if avg < min_chars_per_page:
+            return True, f"前 {n} 页几乎无可提取文字（平均 {avg:.0f} 字符/页）"
+        return False, ""
+    except Exception as e:
+        print(f"检测图片型 PDF 出错: {e}")
+        return False, ""
+
+
 def extract_application_number(text):
     """
     提取审查意见通知书中 "申请号" 字段

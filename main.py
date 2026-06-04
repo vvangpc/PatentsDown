@@ -4,7 +4,10 @@ import threading
 import customtkinter as ctk
 from tkinterdnd2 import TkinterDnD, DND_FILES
 import re
-from extractor import process_office_action, extract_text_from_first_page, extract_application_number
+from extractor import (
+    process_office_action, extract_text_from_first_page,
+    extract_application_number, is_image_pdf,
+)
 from downloader import process_downloads
 import tkinter as tk
 from tkinter import messagebox, filedialog
@@ -872,14 +875,34 @@ class App(Tk):
                 if not os.path.exists(os.path.join(save_dir, f"{label}-{pn}.pdf")):
                     self.log(f"{pn}")
 
+        # —— 图片型(扫描件) PDF 汇总检测 ——
+        image_pdfs = []  # [(label, pn, reason), ...]
+        for label, pn in download_list:
+            fpath = os.path.join(save_dir, f"{label}-{pn}.pdf")
+            if not os.path.exists(fpath):
+                continue
+            is_img, reason = is_image_pdf(fpath)
+            if is_img:
+                image_pdfs.append((label, pn, reason))
+
+        if image_pdfs:
+            self.log(
+                f"\n📷 检测到 {len(image_pdfs)} 个图片型(扫描件)PDF，"
+                f"无法直接复制文字，如需文字请使用 OCR："
+            )
+            for label, pn, _ in image_pdfs:
+                self.log(f"  • {label}-{pn}.pdf")
+
         self.after(0, lambda: self._set_running_state(False))
-        self.after(
-            0,
-            lambda: messagebox.showinfo(
-                "完成",
-                f"任务已完成！\n成功下载 {success_count}/{total} 个文件。\n保存位置: {save_dir}",
-            ),
+        done_msg = (
+            f"任务已完成！\n成功下载 {success_count}/{total} 个文件。\n"
+            f"保存位置: {save_dir}"
         )
+        if image_pdfs:
+            done_msg += (
+                f"\n\n📷 其中 {len(image_pdfs)} 个为图片型(扫描件)PDF，详见下方日志。"
+            )
+        self.after(0, lambda: messagebox.showinfo("完成", done_msg))
 
 
 if __name__ == "__main__":
