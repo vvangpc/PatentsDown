@@ -1,9 +1,9 @@
 ; Inno Setup script -- PatentsDown installer (安装版)
-; Builds dist\PatentsDown_v3.5_Setup.exe from the onedir PyInstaller output.
+; Builds dist\PatentsDown_v3.6_Setup.exe from the onedir PyInstaller output.
 ; Kept ASCII-only so it compiles reliably on any Inno Setup 6.x.
 
 #define MyAppName "PatentsDown"
-#define MyAppVersion "3.5"
+#define MyAppVersion "3.6"
 #define MyAppPublisher "vvangpc"
 #define MyAppURL "https://github.com/vvangpc/PatentsDown"
 #define MyAppExeName "PatentsDown.exe"
@@ -21,7 +21,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=dist
-OutputBaseFilename=PatentsDown_v3.5_Setup
+OutputBaseFilename=PatentsDown_v3.6_Setup
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

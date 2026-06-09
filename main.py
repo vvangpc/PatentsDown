@@ -9,6 +9,8 @@ from extractor import (
     extract_application_number, is_image_pdf,
 )
 from downloader import process_downloads
+from remote_client import process_downloads_via_vps, health_check
+import link_config
 import tkinter as tk
 from tkinter import messagebox, filedialog
 import shell_menu
@@ -101,7 +103,7 @@ class _PathTooltip:
 
 
 APP_NAME = "专利文件下载器"
-APP_VERSION = "v3.4"
+APP_VERSION = "v3.6"
 
 PRIMARY = "#1976D2"
 PRIMARY_HOVER = "#1565C0"
@@ -555,6 +557,139 @@ class App(Tk):
         self.btn_shell_menu.pack(side="right")
         self._refresh_shell_menu_btn()
 
+        # --- 下载链路选择（链路1 直连 / 链路2 VPS），放在右键菜单按钮前面 ---
+        # 两个复选框共享同一 StringVar、互换 onvalue/offvalue，实现互斥（永远恰好选中一个）。
+        self.link_var = ctk.StringVar(value="link1")
+
+        self.btn_link_settings = ctk.CTkButton(
+            footer_frame,
+            text="⚙",
+            width=32,
+            height=24,
+            font=("Microsoft YaHei", 13),
+            corner_radius=6,
+            fg_color="transparent",
+            border_width=1,
+            text_color=ACCENT_TEXT,
+            border_color=(PRIMARY_LIGHT, PRIMARY_LIGHT_DARK),
+            hover_color=("gray92", "gray22"),
+            command=self._open_link2_settings,
+        )
+        self.btn_link_settings.pack(side="right", padx=(0, 8))
+
+        self.chk_link2 = ctk.CTkCheckBox(
+            footer_frame,
+            text="链路2 · VPS",
+            variable=self.link_var,
+            onvalue="link2",
+            offvalue="link1",
+            font=("Microsoft YaHei", 12),
+            checkbox_width=18,
+            checkbox_height=18,
+            command=self._on_link2_checked,
+        )
+        self.chk_link2.pack(side="right", padx=(0, 6))
+
+        self.chk_link1 = ctk.CTkCheckBox(
+            footer_frame,
+            text="链路1 · 直连",
+            variable=self.link_var,
+            onvalue="link1",
+            offvalue="link2",
+            font=("Microsoft YaHei", 12),
+            checkbox_width=18,
+            checkbox_height=18,
+        )
+        self.chk_link1.pack(side="right", padx=(0, 6))
+
+    # ============================================================
+    #  下载链路（链路2 · VPS 中转）设置
+    # ============================================================
+    def _on_link2_checked(self):
+        """勾到链路2 且尚未配置时，自动弹出设置窗引导填写。"""
+        if self.link_var.get() == "link2" and not link_config.is_configured():
+            self.log("链路2 尚未配置 VPS 地址，请在弹窗中填写。")
+            self._open_link2_settings()
+
+    def _open_link2_settings(self):
+        cfg = link_config.load()
+
+        win = ctk.CTkToplevel(self)
+        win.title("链路2 · VPS 设置")
+        win.geometry("470x280")
+        win.resizable(False, False)
+        win.transient(self)
+        # grab_set 在 Windows 上需等窗口可见，延迟调用更稳妥
+        win.after(200, lambda: win.grab_set() if win.winfo_exists() else None)
+
+        ctk.CTkLabel(
+            win, text="链路2 — VPS 中转下载设置",
+            font=("Microsoft YaHei", 15, "bold"),
+        ).pack(pady=(14, 2))
+        ctk.CTkLabel(
+            win, text="把公开号发送到你的 VPS，由 VPS 下载后回传 PDF。",
+            font=("Microsoft YaHei", 11), text_color=MUTED_TEXT,
+        ).pack(pady=(0, 10))
+
+        form = ctk.CTkFrame(win, fg_color="transparent")
+        form.pack(fill="x", padx=22)
+        form.columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            form, text="VPS 地址", font=("Microsoft YaHei", 12), anchor="w",
+        ).grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
+        entry_url = ctk.CTkEntry(
+            form, height=32, font=("Consolas", 12),
+            placeholder_text="http://1.2.3.4:8000",
+        )
+        entry_url.grid(row=0, column=1, sticky="ew", pady=4)
+        entry_url.insert(0, cfg.get("base_url", ""))
+
+        ctk.CTkLabel(
+            form, text="令牌 Token", font=("Microsoft YaHei", 12), anchor="w",
+        ).grid(row=1, column=0, sticky="w", padx=(0, 8), pady=4)
+        entry_token = ctk.CTkEntry(
+            form, height=32, font=("Consolas", 12), show="•",
+            placeholder_text="与服务端 AUTH_TOKEN 一致",
+        )
+        entry_token.grid(row=1, column=1, sticky="ew", pady=4)
+        entry_token.insert(0, cfg.get("token", ""))
+
+        status = ctk.CTkLabel(win, text="", font=("Microsoft YaHei", 12))
+        status.pack(pady=(10, 0))
+
+        def do_test():
+            status.configure(text="测试中...", text_color=MUTED_TEXT)
+
+            def worker():
+                ok, msg = health_check(entry_url.get(), entry_token.get())
+                self.after(
+                    0,
+                    lambda: status.configure(
+                        text=msg, text_color=("green" if ok else "#D32F2F")
+                    ),
+                )
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def do_save():
+            link_config.save(entry_url.get(), entry_token.get())
+            self.log("✅ 链路2 设置已保存。")
+            win.destroy()
+
+        btns = ctk.CTkFrame(win, fg_color="transparent")
+        btns.pack(pady=(14, 0))
+        ctk.CTkButton(
+            btns, text="测试连接", width=120, height=32, corner_radius=8,
+            fg_color="transparent", border_width=1, text_color=ACCENT_TEXT,
+            border_color=(PRIMARY_LIGHT, PRIMARY_LIGHT_DARK),
+            hover_color=("gray92", "gray22"), command=do_test,
+        ).pack(side="left", padx=6)
+        ctk.CTkButton(
+            btns, text="保存", width=120, height=32, corner_radius=8,
+            fg_color=PRIMARY, hover_color=PRIMARY_HOVER, command=do_save,
+        ).pack(side="left", padx=6)
+
     # ============================================================
     #  申请号自动识别 + 点击复制
     # ============================================================
@@ -763,6 +898,15 @@ class App(Tk):
                 messagebox.showwarning("提示", "请至少输入一个对比文件公开号。")
             return
 
+        # 链路2 需先配置 VPS 地址 + 令牌
+        if self.link_var.get() == "link2" and not link_config.is_configured():
+            messagebox.showwarning(
+                "链路2 未配置",
+                "已选择「链路2 · VPS」，但尚未配置 VPS 地址或令牌。\n请先在弹窗中填写。",
+            )
+            self._open_link2_settings()
+            return
+
         save_dir = self._resolve_save_dir()
         if not save_dir:
             return
@@ -833,10 +977,9 @@ class App(Tk):
     # ============================================================
     def _run_downloads(self, download_list, save_dir):
         total = len(download_list)
+        link = self.link_var.get()
         self.after(0, lambda: self.progress_bar.set(0.15))
         self.after(0, lambda: self.progress_label.configure(text=f"正在下载 (0/{total})..."))
-        self.log(f"\n>> 共 {total} 个文件待下载，正在初始化下载器...")
-        self.log("（初次启动可能需要下载 WebDriver，请耐心等待）")
 
         download_count = [0]
 
@@ -853,9 +996,20 @@ class App(Tk):
                 progress = 0.15 + 0.85 * (download_count[0] / total)
                 self.after(0, lambda p=progress: self.progress_bar.set(p))
 
-        success_count = process_downloads(
-            download_list, save_dir, log_callback=log_with_progress
-        )
+        if link == "link2":
+            self.log(f"\n>> 共 {total} 个文件待下载，正在通过 VPS 中转下载（链路2）...")
+            cfg = link_config.load()
+            success_count = process_downloads_via_vps(
+                download_list, save_dir,
+                cfg.get("base_url", ""), cfg.get("token", ""),
+                log_callback=log_with_progress,
+            )
+        else:
+            self.log(f"\n>> 共 {total} 个文件待下载，正在初始化下载器...")
+            self.log("（初次启动可能需要下载 WebDriver，请耐心等待）")
+            success_count = process_downloads(
+                download_list, save_dir, log_callback=log_with_progress
+            )
 
         self.after(0, lambda: self.progress_bar.set(1.0))
         self.after(

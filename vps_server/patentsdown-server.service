@@ -1,0 +1,19 @@
+[Unit]
+Description=PatentsDown VPS 中转下载服务（链路2 服务端）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/patentsdown-server
+ExecStart=/opt/patentsdown-server/venv/bin/python /opt/patentsdown-server/server.py
+# 端口（默认 8000）
+Environment=PORT=8000
+# 访问令牌：取消注释并填入随机串可覆盖 server.py 中的常量
+# Environment=AUTH_TOKEN=填入你的随机令牌
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target

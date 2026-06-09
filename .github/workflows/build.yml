@@ -38,15 +38,15 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PatentsDown-v3.5
+          name: PatentsDown-v3.6
           path: |
-            dist/PatentsDown_v3.5_Portable.exe
-            dist/PatentsDown_v3.5_Setup.exe
+            dist/PatentsDown_v3.6_Portable.exe
+            dist/PatentsDown_v3.6_Setup.exe
 
       - name: Publish to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/PatentsDown_v3.5_Portable.exe
-            dist/PatentsDown_v3.5_Setup.exe
+            dist/PatentsDown_v3.6_Portable.exe
+            dist/PatentsDown_v3.6_Setup.exe
