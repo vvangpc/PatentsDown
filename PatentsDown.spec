@@ -40,7 +40,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='PatentsDown_v3.6_Portable',
+    name='PatentsDown_v3.6.1_Portable',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

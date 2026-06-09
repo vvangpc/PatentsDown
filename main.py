@@ -103,7 +103,7 @@ class _PathTooltip:
 
 
 APP_NAME = "专利文件下载器"
-APP_VERSION = "v3.6"
+APP_VERSION = "v3.6.1"
 
 PRIMARY = "#1976D2"
 PRIMARY_HOVER = "#1565C0"

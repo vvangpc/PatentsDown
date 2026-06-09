@@ -64,8 +64,18 @@ def _download_one(base, token, patent_number, save_path, logger):
         return False
 
     size = os.path.getsize(save_path)
+    # 校验：必须是真 PDF（%PDF 文件头），否则丢弃并失败（防御性，VPS 端已先校验）
+    with open(save_path, "rb") as fh:
+        head = fh.read(5)
+    if not head.startswith(b"%PDF"):
+        logger(f"[链路2] {patent_number} 返回内容不是有效 PDF（{size / 1024:.1f} KB），已删除。")
+        try:
+            os.remove(save_path)
+        except OSError:
+            pass
+        return False
     if size < MIN_PDF_SIZE:
-        logger(f"⚠️ 警告：下载的文件过小 ({size / 1024:.1f} KB)，可能已损坏，请手动检查！")
+        logger(f"⚠️ 警告：下载的 PDF 偏小 ({size / 1024:.1f} KB)，请手动确认完整性。")
     else:
         logger(f"✅ 成功保存: {os.path.basename(save_path)} ({size / 1024:.1f} KB)")
     return True

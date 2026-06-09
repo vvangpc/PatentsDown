@@ -1,8 +1,16 @@
-# 🚀 专利文件下载器 (PatentsDown) v3.6
+# 🚀 专利文件下载器 (PatentsDown) v3.6.1
 
 一款**零门槛即用**的 Windows 桌面工具，帮助专利代理人 / 审查员从 **审查意见通知书 PDF** 中自动提取对比文件专利号，或**手动输入公开号**，从 [Google Patents](https://patents.google.com/) 批量下载全文 PDF。
 
 > 工具不上传任何 PDF 内容，不调用云端 AI 接口，所有操作均在本地完成，保护商业隐私。
+
+---
+
+## 🔧 v3.6.1 修复
+
+- **修复受限环境（含 VPS）下链路1 直连下载失败** — 直连请求头去掉 `br` 编码声明（未装 brotli 解码库时会拿到乱码 HTML，导致解析不到 PDF 链接）。
+- **PDF 真实地址优先解析 `citation_pdf_url`** meta 标签（Google 官方给出的规范地址），正则扫描作兜底。
+- **新增 `%PDF` 文件头校验** — 三条下载路径下载后均校验文件头，不是真 PDF（如报错页 / 验证码页）就删除并判失败，不再把坏文件当成功。
 
 ---
 
@@ -76,8 +84,8 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| **[PatentsDown_v3.6_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.6/PatentsDown_v3.6_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
-| **[PatentsDown_v3.6_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.6/PatentsDown_v3.6_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
+| **[PatentsDown_v3.6.1_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.6.1/PatentsDown_v3.6.1_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
+| **[PatentsDown_v3.6.1_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.6.1/PatentsDown_v3.6.1_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
 
 均无需安装 Python 环境，开箱即用。
 
@@ -158,7 +166,7 @@ python main.py
 
 把 PDF 解析一步搞定：
 
-1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.6_Portable.exe`）放在一个**稳定的位置**，双击启动。
+1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.6.1_Portable.exe`）放在一个**稳定的位置**，双击启动。
 2. 在 App 右下角点 `[➕ 添加右键菜单]`，看到「已添加」提示后关闭 App。
 3. 之后在资源管理器里**右键任意 PDF** → 「专利文件下载」即可启动 App 并自动把该 PDF 加载到模式一，点 [🚀 开始下载] 直接下载。
 4. 不需要时在 App 内点 `[✓ 右键菜单已添加（点击移除）]` 即可移除。
@@ -168,7 +176,7 @@ python main.py
 
 也可以通过命令行直接传入 PDF 路径达到同样效果：
 ```powershell
-PatentsDown_v3.6_Portable.exe "C:\path\to\审查意见.pdf"
+PatentsDown_v3.6.1_Portable.exe "C:\path\to\审查意见.pdf"
 ```
 
 ---
@@ -207,7 +215,8 @@ PatentsDown/
 │   ├── release_notes_v3.2.md
 │   ├── release_notes_v3.3.md
 │   ├── release_notes_v3.4.md
-│   └── release_notes_v3.6.md
+│   ├── release_notes_v3.6.md
+│   └── release_notes_v3.6.1.md
 └── README.md
 ```
 
@@ -234,12 +243,12 @@ PatentsDown/
 ```bash
 # 便携版（单文件）
 pyinstaller PatentsDown.spec --noconfirm --clean
-# → dist/PatentsDown_v3.6_Portable.exe
+# → dist/PatentsDown_v3.6.1_Portable.exe
 
 # 安装版：先目录打包，再用 Inno Setup 生成安装包
 pyinstaller PatentsDown-dir.spec --noconfirm --clean
 ISCC.exe installer.iss
-# → dist/PatentsDown_v3.6_Setup.exe
+# → dist/PatentsDown_v3.6.1_Setup.exe
 ```
 
 > 也可直接推送 `v*` 标签，由 GitHub Actions（`.github/workflows/build.yml`）自动完成上述两种构建并发布到 Release。
@@ -248,7 +257,14 @@ ISCC.exe installer.iss
 
 ## 📜 更新日志
 
-### v3.6（本次发布）
+### v3.6.1（本次发布）
+
+- 修复受限环境（含 VPS）下链路1 直连下载失败 —— 直连请求头去掉 `br` 编码声明，避免未装 brotli 解码库时拿到乱码 HTML、解析不到 PDF 链接。
+- PDF 真实地址优先解析 `citation_pdf_url` meta 标签（Google 官方规范地址），正则扫描 patentimages 直链作兜底。
+- 链路1 / 链路2 客户端 / VPS 服务端三处下载后均新增 `%PDF` 文件头校验，非真 PDF（报错页 / 验证码页）即删除并判失败，不再把坏文件当成功计数。
+- 顺带统一 `pyproject.toml` 版本号（此前滞后于实际发布）。
+
+### v3.6
 
 - 新增「下载链路」选择：底部两个互斥复选框「链路1 · 直连」/「链路2 · VPS 中转」。
 - 链路2 让本机 IP 被 Google 风控（503）时，可经未被风控的 VPS 中转下载，再回传 PDF。

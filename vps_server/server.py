@@ -58,8 +58,19 @@ SESSION = requests.Session()
 SESSION.headers.update(HEADERS)
 
 PDF_PATTERN = r'https://patentimages\.storage\.googleapis\.com/[^"\'>\s]+\.pdf'
+CITATION_PATTERN = (
+    r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\']([^"\']+)["\']')
 
 app = Flask(__name__)
+
+
+def _extract_pdf_url(html):
+    """优先解析 citation_pdf_url meta 标签，兜底扫描 patentimages 直链。"""
+    m = re.search(CITATION_PATTERN, html, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    m = re.search(PDF_PATTERN, html)
+    return m.group(0) if m else None
 
 
 def _log(msg):
@@ -100,11 +111,10 @@ def fetch_pdf_bytes(patent_number):
     if "recaptcha" in low or "captcha" in low or "unusual traffic" in low:
         return None, "触发 Google 人机验证（captcha）"
 
-    matches = re.findall(PDF_PATTERN, html)
-    if not matches:
+    pdf_url = _extract_pdf_url(html)
+    if not pdf_url:
         return None, "页面源码中未找到 PDF 链接"
 
-    pdf_url = matches[0]
     _log(f"[{patent_number}] 找到 PDF: {pdf_url}")
     try:
         r = SESSION.get(pdf_url, stream=True, timeout=60)
@@ -113,6 +123,9 @@ def fetch_pdf_bytes(patent_number):
     except requests.exceptions.RequestException as e:
         return None, f"下载 PDF 失败: {e}"
 
+    # 校验：必须是真 PDF（%PDF 文件头），否则视为失败（防止把报错页/验证码页当 PDF 回传）
+    if not data.startswith(b"%PDF"):
+        return None, f"下载内容不是有效 PDF（{len(data) / 1024:.1f} KB），可能是报错页/验证码页"
     if len(data) < MIN_PDF_SIZE:
         return None, f"下载的文件过小 ({len(data) / 1024:.1f} KB)，可能损坏或被拦截"
 

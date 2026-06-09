@@ -6,6 +6,7 @@
 import os
 import re
 import time
+import random
 import subprocess
 import requests
 import sys
@@ -29,7 +30,9 @@ HEADERS = {
     "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
                "image/avif,image/webp,*/*;q=0.8"),
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    # 去掉 br：requests 默认未装 brotli 解码库时，若声明 br 会拿到无法解码的乱码响应，
+    # 导致正则匹配不到 PDF 链接（与 vps_server/server.py 保持一致）。
+    "Accept-Encoding": "gzip, deflate",
     "Referer": "https://patents.google.com/",
     "Upgrade-Insecure-Requests": "1",
     "Sec-Fetch-Dest": "document",
@@ -44,6 +47,23 @@ HEADERS = {
 # 全局会话，复用连接并保留 cookie，降低被 Google 限流的概率
 SESSION = requests.Session()
 SESSION.headers.update(HEADERS)
+
+
+def _extract_pdf_url(html):
+    """从 Google Patents 页面 HTML 提取 PDF 真实地址。
+
+    PDF 真实路径带哈希目录（如 ad/75/30/...），无法靠专利号拼接，必须从页面解析。
+    优先解析 Google 官方给出的 <meta name="citation_pdf_url" content="...">；
+    解析不到再兜底扫描页面里第一条 patentimages 直链。
+    """
+    m = re.search(
+        r'<meta\s+name=["\']citation_pdf_url["\']\s+content=["\']([^"\']+)["\']',
+        html, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    m = re.search(
+        r'https://patentimages\.storage\.googleapis\.com/[^"\'>\s]+\.pdf', html)
+    return m.group(0) if m else None
 
 
 def download_file(url, filename, save_dir, logger, max_retries=3):
@@ -65,13 +85,23 @@ def download_file(url, filename, save_dir, logger, max_retries=3):
                     if chunk:
                         f.write(chunk)
             
-            # --- V2.0 升级：检查文件大小 ---
+            # --- 校验：必须是真 PDF（%PDF 文件头），否则视为失败并删除 ---
             file_size = os.path.getsize(save_path)
-            if file_size < 50 * 1024:  # 小于 50KB
-                logger(f"⚠️ 警告：下载的文件过小 ({file_size / 1024:.1f} KB)，可能已损坏或被拦截（如验证码页面），请手动检查！")
+            with open(save_path, "rb") as fh:
+                head = fh.read(5)
+            if not head.startswith(b"%PDF"):
+                logger(f"❌ 下载内容不是有效 PDF（{file_size / 1024:.1f} KB，文件头 {head!r}），"
+                       f"可能是报错页/验证码页，已删除。")
+                try:
+                    os.remove(save_path)
+                except OSError:
+                    pass
+                return False
+            if file_size < 50 * 1024:  # 真 PDF 但偏小，保留并提醒
+                logger(f"⚠️ 警告：下载的 PDF 偏小 ({file_size / 1024:.1f} KB)，请手动确认完整性。")
             else:
                 logger(f"✅ 成功保存: {os.path.basename(save_path)} ({file_size / 1024:.1f} KB)")
-            
+
             return True
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
             logger(f"网络错误 (第 {attempt}/{max_retries} 次尝试): {e}")
@@ -123,12 +153,9 @@ def download_via_requests(patent_number, save_dir, filename, logger):
             logger("⚠️ 触发 Google 频繁访问验证，直连模式跳过")
             return False
 
-        # 用正则提取 PDF 链接
-        pdf_pattern = r'https://patentimages\.storage\.googleapis\.com/[^"\'>\s]+\.pdf'
-        matches = re.findall(pdf_pattern, html)
-
-        if matches:
-            pdf_url = matches[0]
+        # 优先解析 citation_pdf_url meta 标签，兜底用正则扫描 patentimages 直链
+        pdf_url = _extract_pdf_url(html)
+        if pdf_url:
             logger(f"[直连模式] 找到 PDF 链接，正在下载...")
             return download_file(pdf_url, filename, save_dir, logger)
         else:
@@ -276,7 +303,7 @@ def process_downloads(download_list, save_dir, log_callback=None):
             success_count += 1
         else:
             selenium_needed.append((label, patent_number))
-        time.sleep(0.5)  # 礼貌间隔，降低被 Google 限流的概率
+        time.sleep(0.5 + random.uniform(0, 0.5))  # 礼貌间隔 + 随机抖动，降低被 Google 限流的概率
 
     # —————— 第二轮: Selenium Fallback（仅处理失败条目） ——————
     if selenium_needed:
@@ -298,7 +325,7 @@ def process_downloads(download_list, save_dir, log_callback=None):
                     success_count += 1
                 else:
                     log_callback(f"❌ {filename} 下载失败。建议手动下载。")
-                time.sleep(1)
+                time.sleep(1 + random.uniform(0, 0.5))
         finally:
             driver.quit()
 
