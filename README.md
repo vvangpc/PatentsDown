@@ -1,4 +1,4 @@
-# 🚀 专利文件下载器 (PatentsDown) v3.4
+# 🚀 专利文件下载器 (PatentsDown) v3.6
 
 一款**零门槛即用**的 Windows 桌面工具，帮助专利代理人 / 审查员从 **审查意见通知书 PDF** 中自动提取对比文件专利号，或**手动输入公开号**，从 [Google Patents](https://patents.google.com/) 批量下载全文 PDF。
 
@@ -6,13 +6,22 @@
 
 ---
 
-## ✨ v3.4 新特性
+## ✨ v3.6 新特性
 
-- 🐛 **修复对比文件 D 标号错位** — OA 通知书首页对比文件表中若有非专利文献（如论文），现按 OA「编号」列对齐 D 标号，非专利行跳过下载并在日志中以 `⏭️ 编号 N 为非专利文献` 提示，不再让后续 D2/D3/... 全部上移。
-- 🧩 **表格结构感知解析** — 优先用 PyMuPDF `find_tables()` 读取「编号 / 文件号或名称 / 公开日期」三列；表格识别失败时回退到启发式行分组，仍按编号列对齐；都失败时落到旧的全文正则并给出警告。
+- 🔀 **新增「下载链路」选择** — 底部新增两个互斥复选框：
+  - **链路1 · 直连**：保持原行为，本机 `requests` 直连 Google Patents + Selenium 浏览器兜底。
+  - **链路2 · VPS 中转**：当本机出口 IP 被 Google 风控（连续 503）时，可把公开号发送到部署在
+    **未被风控的 VPS** 上的下载服务，由 VPS 用自己的 IP 下载，再把 PDF 字节回传本机保存。
+- ⚙ **链路2 设置弹窗** — 填写 VPS 地址与令牌 Token，可「测试连接」，配置保存到本地
+  `%APPDATA%\PatentsDown\link_config.json`（**不进 Git 仓库**，避免暴露自己的 VPS）。
+- 📦 **自带 VPS 服务端** — 新增 `vps_server/`（Flask + requests，systemd 托管），整目录拷到 VPS 即可部署，
+  详见 [`vps_server/README_DEPLOY.md`](vps_server/README_DEPLOY.md)。两条链路共用「失败清单 / 扫描件检测 / 完成弹窗」。
 
 ### 历史特性（保留）
 
+- **扫描件（图片型）PDF 检测**（v3.5）：下载完成后自动检测所有已保存的 PDF，汇总标出无可提取文字层的图片型 PDF，并在日志和完成弹窗中提醒。
+- **修复对比文件 D 标号错位**（v3.4）：OA 通知书首页对比文件表中若有非专利文献（如论文），现按 OA「编号」列对齐 D 标号，非专利行跳过下载并在日志中提示。
+- **表格结构感知解析**（v3.4）：优先用 PyMuPDF `find_tables()` 读取「编号 / 文件号或名称 / 公开日期」三列，识别失败时回退启发式行分组、再回退全文正则。
 - **长路径挤出按钮修复**（v3.3）：「保存目录」行的路径过长时不再把按钮挤出可视区；超长路径以 `C:\Users\...\folder` 形式紧凑显示，悬停看完整路径。
 - **下载稳定性提升**（v3.2）：直连模式拟真请求头 + 503/429 指数退避重试；浏览器兜底用标准 Selenium 驱动 Chrome 148+，弹出可见窗口便于手动过验证。
 - **安装版 + GitHub Actions 自动构建**（v3.2）：Inno Setup 安装包启动更快；推送 `v*` 标签即触发自动构建发布。
@@ -43,8 +52,10 @@
 | ✍️ **手动录入**  | 在模式二中逐条输入公开号，2 列网格布局，自动按顺序编号 D1, D2, ...             |
 | 🌐 **全球覆盖**  | 支持 CN、US、WO、EP、JP、KR、DE、FR、GB、TW、AU 等主流国家/地区         |
 | ⚡ **双引擎下载** | 优先使用 `requests` 直连（免浏览器极速），失败后自动回退到 `Selenium` 浏览器模式 |
+| 🔀 **双链路下载** | 链路1 本机直连；链路2 经自建 VPS 中转，绕开本机 IP 被 Google 风控（503）的场景 |
 | ⏭️ **增量下载**  | 自动跳过本地已存在且完整的 PDF，避免重复下载                             |
 | 🔍 **文件校验**  | 下载完成后自动检查文件大小，< 50KB 则警告可能损坏或被拦截                     |
+| 🖼️ **扫描件检测** | 下载后自动标出无文字层的图片型（扫描件）PDF，提醒可改用模式二手动处理                  |
 | 🛡️ **反爬对抗** | 直连模式带退避重试；浏览器兜底以可见窗口运行，遇人机验证可手动通过                    |
 | 📋 **失败清单**  | 任务结束后自动汇总失败专利号，方便一键复制手动处理                            |
 | 🆔 **申请号识别** | 拖入 PDF 后自动识别申请号并在界面显示，点击即可复制                         |
@@ -65,8 +76,8 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| **[PatentsDown_v3.4_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.4/PatentsDown_v3.4_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
-| **[PatentsDown_v3.4_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.4/PatentsDown_v3.4_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
+| **[PatentsDown_v3.6_Setup.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.6/PatentsDown_v3.6_Setup.exe)** | **安装版** — 双击安装到当前用户目录（无需管理员），**启动速度快**，推荐日常使用 |
+| **[PatentsDown_v3.6_Portable.exe](https://github.com/vvangpc/PatentsDown/releases/download/v3.6/PatentsDown_v3.6_Portable.exe)** | **便携版** — 单文件免安装、可随身拷贝；首次启动需自解压，略慢 |
 
 均无需安装 Python 环境，开箱即用。
 
@@ -125,11 +136,29 @@ python main.py
 - **失败处理**：直连若被限流会自动转入浏览器兜底；任务结束后日志底部会列出失败专利号，复制后到 [Google Patents](https://patents.google.com/) 手动搜索下载。
 - **人机验证**：浏览器兜底遇到 Google 人机验证时会弹出可见窗口，手动完成验证后程序自动继续下载。
 
+### 🔀 下载链路选择（链路1 直连 / 链路2 VPS 中转）
+
+界面底部「添加右键菜单」按钮左侧有两个互斥复选框，默认 **链路1 · 直连**。
+
+- **链路1 · 直连**：本机直接访问 Google Patents（无需任何额外配置）。
+- **链路2 · VPS 中转**：当本机出口 IP 被 Google 风控（日志反复出现 503、转浏览器兜底）时使用。
+  把公开号发送到你自己部署在**未被风控 VPS** 上的下载服务，由 VPS 代为下载并回传 PDF。
+
+启用链路2 的步骤：
+
+1. 先在一台 IP 未被风控的 VPS 上部署服务端，见 [`vps_server/README_DEPLOY.md`](vps_server/README_DEPLOY.md)。
+2. 在 App 中点底部 `⚙` 打开「链路2 设置」，填入 VPS 地址（如 `http://1.2.3.4:8000`）与令牌 Token，
+   点「测试连接」通过后保存。配置存于本地 `%APPDATA%\PatentsDown\link_config.json`，**不会进入 Git 仓库**。
+3. 勾选「链路2 · VPS」即可。勾选时若尚未配置，会自动弹出设置窗引导填写。
+
+> 安全说明：VPS 地址与 Token 仅保存在本机 `%APPDATA%`，源码与仓库中均不含任何 VPS 凭证；
+> 服务端鉴权仅靠 `Authorization: Bearer <Token>`，可在多台电脑上凭同一 Token 使用。
+
 ### 🪄 Windows 右键菜单集成
 
 把 PDF 解析一步搞定：
 
-1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.4_Portable.exe`）放在一个**稳定的位置**，双击启动。
+1. 把下载好的 exe（安装版安装后的 `PatentsDown.exe`，或便携版 `PatentsDown_v3.6_Portable.exe`）放在一个**稳定的位置**，双击启动。
 2. 在 App 右下角点 `[➕ 添加右键菜单]`，看到「已添加」提示后关闭 App。
 3. 之后在资源管理器里**右键任意 PDF** → 「专利文件下载」即可启动 App 并自动把该 PDF 加载到模式一，点 [🚀 开始下载] 直接下载。
 4. 不需要时在 App 内点 `[✓ 右键菜单已添加（点击移除）]` 即可移除。
@@ -139,7 +168,7 @@ python main.py
 
 也可以通过命令行直接传入 PDF 路径达到同样效果：
 ```powershell
-PatentsDown_v3.4_Portable.exe "C:\path\to\审查意见.pdf"
+PatentsDown_v3.6_Portable.exe "C:\path\to\审查意见.pdf"
 ```
 
 ---
@@ -149,8 +178,10 @@ PatentsDown_v3.4_Portable.exe "C:\path\to\审查意见.pdf"
 ```
 PatentsDown/
 ├── main.py                 # GUI 入口（customtkinter + tkinterdnd2，双标签页布局）
-├── downloader.py           # 下载引擎（requests 直连 + Selenium 回退）
-├── extractor.py            # PDF 解析（PyMuPDF 提取文本 + 正则匹配专利号）
+├── downloader.py           # 下载引擎（链路1：requests 直连 + Selenium 回退）
+├── remote_client.py        # 链路2 客户端：把公开号发往 VPS，回收 PDF 字节
+├── link_config.py          # 链路2 本地配置读写（%APPDATA%\PatentsDown\link_config.json）
+├── extractor.py            # PDF 解析（PyMuPDF 提取文本 + 正则匹配专利号 + 扫描件检测）
 ├── shell_menu.py           # Windows 右键菜单注册（HKCU winreg）
 ├── icon.ico                # 应用图标（多尺寸 ICO）
 ├── PatentsDown.spec        # PyInstaller 单文件(便携版)打包配置
@@ -158,6 +189,11 @@ PatentsDown/
 ├── installer.iss           # Inno Setup 安装包脚本（安装版）
 ├── pyproject.toml          # 项目元数据与依赖（uv 兼容）
 ├── uv.lock                 # 依赖锁定文件
+├── vps_server/             # 链路2 服务端（拷到 VPS 部署，自包含）
+│   ├── server.py           #   Flask 服务：/health、/download（Bearer Token 鉴权）
+│   ├── requirements.txt    #   flask / requests
+│   ├── patentsdown-server.service  # systemd 单元（开机自启）
+│   └── README_DEPLOY.md    #   Ubuntu 24 部署步骤
 ├── .github/
 │   └── workflows/
 │       └── build.yml       # GitHub Actions：打 tag 自动构建并发布 Release
@@ -170,7 +206,8 @@ PatentsDown/
 │   ├── release_notes_v3.1.md
 │   ├── release_notes_v3.2.md
 │   ├── release_notes_v3.3.md
-│   └── release_notes_v3.4.md
+│   ├── release_notes_v3.4.md
+│   └── release_notes_v3.6.md
 └── README.md
 ```
 
@@ -185,6 +222,7 @@ PatentsDown/
 | `PyMuPDF` (fitz)  | PDF 文本提取           |
 | `requests`        | HTTP 直连下载（极速模式）    |
 | `Selenium`        | 浏览器回退驱动（内置 Selenium Manager 自动管理 ChromeDriver） |
+| `Flask`           | 链路2 VPS 服务端（仅部署在 VPS，客户端不依赖） |
 | `Pillow`          | 图标生成（开发时）          |
 | `PyInstaller`     | 打包为 EXE            |
 | `Inno Setup`      | 生成安装版安装包           |
@@ -196,12 +234,12 @@ PatentsDown/
 ```bash
 # 便携版（单文件）
 pyinstaller PatentsDown.spec --noconfirm --clean
-# → dist/PatentsDown_v3.4_Portable.exe
+# → dist/PatentsDown_v3.6_Portable.exe
 
 # 安装版：先目录打包，再用 Inno Setup 生成安装包
 pyinstaller PatentsDown-dir.spec --noconfirm --clean
 ISCC.exe installer.iss
-# → dist/PatentsDown_v3.4_Setup.exe
+# → dist/PatentsDown_v3.6_Setup.exe
 ```
 
 > 也可直接推送 `v*` 标签，由 GitHub Actions（`.github/workflows/build.yml`）自动完成上述两种构建并发布到 Release。
@@ -210,7 +248,18 @@ ISCC.exe installer.iss
 
 ## 📜 更新日志
 
-### v3.4（本次发布）
+### v3.6（本次发布）
+
+- 新增「下载链路」选择：底部两个互斥复选框「链路1 · 直连」/「链路2 · VPS 中转」。
+- 链路2 让本机 IP 被 Google 风控（503）时，可经未被风控的 VPS 中转下载，再回传 PDF。
+- 新增链路2 设置弹窗（VPS 地址 + Token，可测试连接），配置存于本地 `%APPDATA%`，不进 Git 仓库。
+- 新增自包含 VPS 服务端 `vps_server/`（Flask + requests + systemd，Bearer Token 鉴权）。
+
+### v3.5
+
+- 新增扫描件（图片型）PDF 检测：下载完成后自动检测所有已保存的 PDF，汇总标出无可提取文字层的图片型 PDF，并在日志和完成弹窗中提醒。
+
+### v3.4
 
 - 修复 OA 通知书对比文件 D 标号错位 — 当首页表格里含非专利文献（论文等）时，D 标号现严格对齐 OA「编号」列，非专利行跳过下载并在日志提示。
 - 表格结构感知解析：PyMuPDF `find_tables()` 主路径 + 启发式行分组回退 + 旧版全文正则终极回退（落到终极回退时给出明确警告）。
@@ -256,7 +305,7 @@ ISCC.exe installer.iss
 
 ## ⚠️ 注意事项
 
-- **网络要求** — 需能正常访问 Google Patents（部分网络环境可能需要代理）。
+- **网络要求** — 需能正常访问 Google Patents（部分网络环境可能需要代理）。若本机 IP 被风控（反复 503），可改用 **链路2 · VPS 中转**（见上文「下载链路选择」）。
 - **Chrome 浏览器** — Selenium 回退模式需要本地安装 Chrome；驱动由 Selenium Manager 自动匹配下载。
 - **频繁访问限制** — 大批量下载时 Google 可能触发验证码，浏览器兜底会弹出可见窗口供手动通过。
 - **扫描件 PDF** — 工具仅支持文字型 PDF，扫描件（图片型）无法自动提取对比文件号；此时建议改用模式二手动输入。
